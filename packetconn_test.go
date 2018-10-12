@@ -41,14 +41,13 @@ func init() {
 	time.Sleep(time.Millisecond * 200)
 }
 
-func TestPacketConnection(t *testing.T) {
-
+func TestPacketConn(t *testing.T) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", PORT))
 	if err != nil {
 		t.Errorf("connect error: %s", err)
 	}
 
-	pconn := NewPacketConn(conn)
+	pconn := NewPacketConn(NewBufferedConn(conn, 8192, 8192))
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
@@ -87,5 +86,4 @@ func TestPacketConnection(t *testing.T) {
 			}
 		}
 	}
-
 }

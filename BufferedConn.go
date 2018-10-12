@@ -12,7 +12,7 @@ type BufferedConn struct {
 	bufWriter *bufio.Writer
 }
 
-// NewBufferedWriteConnection creates a new connection with buffered write based on underlying connection
+// NewBufferedConn creates a new connection with buffered write based on underlying connection
 func NewBufferedConn(conn net.Conn, readBufferSize, writeBufferSize int) *BufferedConn {
 	brc := &BufferedConn{
 		Conn: conn,

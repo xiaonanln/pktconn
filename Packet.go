@@ -2,14 +2,14 @@ package packetconn
 
 import (
 	"encoding/binary"
+	"fmt"
+	"github.com/xiaonanln/go-simplelogger"
 
 	"unsafe"
 
 	"sync/atomic"
 
 	"sync"
-
-	simplelogger "github.com/xiaonanln/go-simplelogger"
 )
 
 const (
@@ -71,7 +71,7 @@ func allocPacket() *Packet {
 	pkt.refcount = 1
 
 	if pkt.GetPayloadLen() != 0 {
-		simplelogger.Panicf("allocPacket: payload should be 0, but is %d", pkt.GetPayloadLen())
+		panic(fmt.Errorf("allocPacket: payload should be 0, but is %d", pkt.GetPayloadLen()))
 	}
 
 	return pkt
