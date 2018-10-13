@@ -2,24 +2,8 @@ package packetconn
 
 import (
 	"io"
-
-	"github.com/pkg/errors"
+	"net"
 )
-
-type timeoutError interface {
-	Timeout() bool // Is it a timeout error
-}
-
-// IsTimeoutError checks if the error is a timeout error
-func IsTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	err = errors.Cause(err)
-	ne, ok := err.(timeoutError)
-	return ok && ne.Timeout()
-}
 
 // WriteAll write all bytes of data to the writer
 func WriteAll(conn io.Writer, data []byte) error {
@@ -35,7 +19,7 @@ func WriteAll(conn io.Writer, data []byte) error {
 			left -= n
 		}
 
-		if err != nil && !IsTimeoutError(err) {
+		if err != nil && !IsTimeout(err) {
 			return err
 		}
 	}
@@ -56,9 +40,22 @@ func ReadAll(conn io.Reader, data []byte) error {
 			left -= n
 		}
 
-		if err != nil && !IsTimeoutError(err) {
+		if err != nil && !IsTimeout(err) {
 			return err
 		}
 	}
 	return nil
+}
+
+// flushable is interface for flushable connections
+type flushable interface {
+	Flush() error
+}
+
+func tryFlush(conn net.Conn) error {
+	if f, ok := conn.(flushable); ok {
+		return f.Flush()
+	} else {
+		return nil
+	}
 }

@@ -125,8 +125,8 @@ func (pc *PacketConn) SetRecvDeadline(deadline time.Time) error {
 	return pc.conn.SetReadDeadline(deadline)
 }
 
-// RecvPacket receives the next packet
-func (pc *PacketConn) RecvPacket() (*Packet, error) {
+// Recv receives the next packet
+func (pc *PacketConn) Recv() (*Packet, error) {
 	if pc.payloadLenBytesRecved < _SIZE_FIELD_SIZE {
 		// receive more of payload len bytes
 		n, err := pc.conn.Read(pc.payloadLenBuf[pc.payloadLenBytesRecved:])

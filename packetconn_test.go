@@ -2,6 +2,7 @@ package packetconn
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"testing"
@@ -10,44 +11,102 @@ import (
 	simplelogger "github.com/xiaonanln/go-simplelogger"
 )
 
-type testEchoTcpServer struct {
+const (
+	testPort       = 14572
+	testBufferSize = 16384
+)
+
+type testPacketServer struct {
 }
 
-func (ts *testEchoTcpServer) ServeTCPConn(conn net.Conn) {
-	buf := make([]byte, 1024*1024, 1024*1024)
-	for {
-		n, err := conn.Read(buf)
-		if n > 0 {
-			WriteAll(conn, buf[:n])
-		}
+// ServeTCP serves on specified address as TCP server
+func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) error {
+	ln, err := net.Listen("tcp", listenAddr)
+	log.Printf("Listening on TCP: %s ...", listenAddr)
 
+	if err != nil {
+		return err
+	}
+
+	defer ln.Close()
+	serverReady <- true
+
+	for {
+		conn, err := ln.Accept()
 		if err != nil {
-			if IsTimeoutError(err) {
+			if IsTimeout(err) {
 				continue
 			} else {
-				simplelogger.Infof("read error: %s", err.Error())
-				break
+				return err
 			}
 		}
+
+		log.Printf("%s connected", conn.RemoteAddr())
+		ts.serveTCPConn(conn)
 	}
 }
 
-const PORT = 14572
-
-func init() {
+func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
-		ServeTCP(fmt.Sprintf("localhost:%d", PORT), &testEchoTcpServer{})
+		pc := NewPacketConn(NewBufferedConn(conn, testBufferSize, testBufferSize))
+
+		go func() {
+			for {
+				err := pc.Flush()
+				if err != nil && !IsTemporary(err) {
+					log.Printf("packet conn quit")
+					break
+				}
+
+				time.Sleep(time.Millisecond * 5)
+			}
+		}()
+
+		for {
+			pkt, err := pc.Recv()
+
+			if pkt != nil {
+				//log.Printf("Recv packet with payload %d", pkt.GetPayloadLen())
+				pc.SendPacket(pkt)
+				pkt.Release()
+			}
+
+			if err != nil {
+				if IsTemporary(err) {
+					continue
+				} else {
+					break
+				}
+			}
+		}
 	}()
-	time.Sleep(time.Millisecond * 200)
 }
 
-func TestPacketConn(t *testing.T) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", PORT))
+func init() {
+	var server testPacketServer
+	serverReady := make(chan bool)
+	go server.serve(fmt.Sprintf("localhost:%d", testPort), serverReady)
+	<-serverReady
+}
+
+func TestPacketConnWithBuffer(t *testing.T) {
+	testPacketConnRS(t, true)
+}
+
+func TestPacketConnWithoutBuffer(t *testing.T) {
+	testPacketConnRS(t, false)
+}
+
+func testPacketConnRS(t *testing.T, useBufferedConn bool) {
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", testPort))
 	if err != nil {
 		t.Errorf("connect error: %s", err)
 	}
 
-	pconn := NewPacketConn(NewBufferedConn(conn, 8192, 8192))
+	if useBufferedConn {
+		conn = NewBufferedConn(conn, testBufferSize, testBufferSize)
+	}
+	pconn := NewPacketConn(conn)
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
@@ -65,9 +124,9 @@ func TestPacketConn(t *testing.T) {
 		var recvPacket *Packet
 		var err error
 		for {
-			recvPacket, err = pconn.RecvPacket()
+			recvPacket, err = pconn.Recv()
 			if err != nil {
-				if IsTimeoutError(err) {
+				if IsTemporary(err) {
 					continue
 				} else {
 					t.Fatal(err)
@@ -86,4 +145,51 @@ func TestPacketConn(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPacketConnPerf(t *testing.T) {
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", testPort))
+	if err != nil {
+		t.Errorf("connect error: %s", err)
+	}
+
+	pc := NewPacketConn(NewBufferedConn(conn, testBufferSize, testBufferSize))
+
+	go func() {
+		counter := 0
+		for {
+			_, err := pc.Recv()
+			if err != nil {
+				if IsTemporary(err) {
+					continue
+				} else {
+					break
+				}
+			}
+			counter += 1
+		}
+
+		t.Logf("send/recv %d packets in 10s", counter)
+	}()
+
+	go func() {
+		for {
+			err := pc.Flush()
+			if err != nil && !IsTemporary(err) {
+				log.Printf("packet conn quit")
+				break
+			}
+
+			time.Sleep(time.Millisecond * 5)
+		}
+	}()
+	payload := make([]byte, 1024)
+	packet := NewPacket()
+	packet.AppendBytes(payload)
+
+	stopTime := time.Now().Add(time.Second * 10)
+	for time.Now().Before(stopTime) {
+		pc.SendPacket(packet)
+	}
+	pc.Close()
 }
