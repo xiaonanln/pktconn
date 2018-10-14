@@ -5,18 +5,26 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	simplelogger "github.com/xiaonanln/go-simplelogger"
+	"github.com/xiaonanln/go-simplelogger"
 )
 
 const (
-	testPort       = 14572
-	testBufferSize = 16384
+	port            = 14572
+	bufferSize      = 8192 * 2
+	flushInterval   = time.Millisecond * 100
+	noackCountLimit = 10000
+	perfClientCount = 1000
+	perfPayloadSize = 512
+	perfDuration    = time.Second * 60
 )
 
 type testPacketServer struct {
+	handlePacketCount uint64
 }
 
 // ServeTCP serves on specified address as TCP server
@@ -30,6 +38,14 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 
 	defer ln.Close()
 	serverReady <- true
+
+	go func() {
+		for {
+			count := atomic.SwapUint64(&ts.handlePacketCount, 0)
+			println(count, "packets per second")
+			time.Sleep(time.Second)
+		}
+	}()
 
 	for {
 		conn, err := ln.Accept()
@@ -48,7 +64,7 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 
 func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
-		pc := NewPacketConn(NewBufferedConn(conn, testBufferSize, testBufferSize))
+		pc := NewPacketConn(NewBufferedConn(conn, bufferSize, bufferSize))
 
 		go func() {
 			for {
@@ -58,7 +74,7 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 					break
 				}
 
-				time.Sleep(time.Millisecond * 5)
+				time.Sleep(flushInterval)
 			}
 		}()
 
@@ -69,6 +85,7 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 				//log.Printf("Recv packet with payload %d", pkt.GetPayloadLen())
 				pc.SendPacket(pkt)
 				pkt.Release()
+				atomic.AddUint64(&ts.handlePacketCount, 1)
 			}
 
 			if err != nil {
@@ -85,7 +102,7 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 func init() {
 	var server testPacketServer
 	serverReady := make(chan bool)
-	go server.serve(fmt.Sprintf("localhost:%d", testPort), serverReady)
+	go server.serve(fmt.Sprintf("localhost:%d", port), serverReady)
 	<-serverReady
 }
 
@@ -98,13 +115,13 @@ func TestPacketConnWithoutBuffer(t *testing.T) {
 }
 
 func testPacketConnRS(t *testing.T, useBufferedConn bool) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", testPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		t.Errorf("connect error: %s", err)
 	}
 
 	if useBufferedConn {
-		conn = NewBufferedConn(conn, testBufferSize, testBufferSize)
+		conn = NewBufferedConn(conn, bufferSize, bufferSize)
 	}
 	pconn := NewPacketConn(conn)
 
@@ -147,49 +164,71 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 	}
 }
 
-func TestPacketConnPerf(t *testing.T) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", testPort))
+type testPacketClient struct {
+}
+
+func (c *testPacketClient) routine(t *testing.T, done *sync.WaitGroup) {
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		t.Errorf("connect error: %s", err)
 	}
 
-	pc := NewPacketConn(NewBufferedConn(conn, testBufferSize, testBufferSize))
+	pc := NewPacketConn(NewBufferedConn(conn, bufferSize, bufferSize))
 
-	go func() {
-		counter := 0
+	payload := make([]byte, perfPayloadSize)
+	packet := NewPacket()
+	packet.AppendBytes(payload)
+
+	stopTime := time.Now().Add(perfDuration)
+	noackCount := 0
+	for time.Now().Before(stopTime) {
+		pc.SendPacket(packet)
+		pc.Flush()
+		noackCount += 1
+
+		for noackCount > noackCountLimit {
+			for {
+				_, err := pc.Recv()
+				if err != nil {
+					if IsTemporary(err) {
+						continue
+					} else {
+						t.Fatalf("recv failed: %s", err)
+					}
+				} else {
+					noackCount -= 1
+					break
+				}
+			}
+		}
+	}
+
+	for noackCount > 0 {
 		for {
 			_, err := pc.Recv()
 			if err != nil {
 				if IsTemporary(err) {
 					continue
 				} else {
-					break
+					t.Fatalf("recv failed: %s", err)
 				}
-			}
-			counter += 1
-		}
-
-		t.Logf("send/recv %d packets in 10s", counter)
-	}()
-
-	go func() {
-		for {
-			err := pc.Flush()
-			if err != nil && !IsTemporary(err) {
-				log.Printf("packet conn quit")
+			} else {
+				noackCount -= 1
 				break
 			}
-
-			time.Sleep(time.Millisecond * 5)
 		}
-	}()
-	payload := make([]byte, 1024)
-	packet := NewPacket()
-	packet.AppendBytes(payload)
-
-	stopTime := time.Now().Add(time.Second * 10)
-	for time.Now().Before(stopTime) {
-		pc.SendPacket(packet)
 	}
 	pc.Close()
+	done.Done()
+}
+
+func TestPacketConnPerf(t *testing.T) {
+	var done sync.WaitGroup
+	done.Add(perfClientCount)
+
+	for i := 0; i < perfClientCount; i++ {
+		client := &testPacketClient{}
+		go client.routine(t, &done)
+	}
+	done.Wait()
 }
