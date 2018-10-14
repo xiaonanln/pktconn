@@ -16,10 +16,10 @@ import (
 const (
 	port            = 14572
 	bufferSize      = 8192 * 2
-	flushInterval   = time.Millisecond * 100
+	flushInterval   = time.Millisecond * 5
 	noackCountLimit = 10000
 	perfClientCount = 1000
-	perfPayloadSize = 512
+	perfPayloadSize = 128
 	perfDuration    = time.Second * 60
 )
 
