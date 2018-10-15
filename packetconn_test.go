@@ -5,6 +5,8 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"os"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -227,6 +229,12 @@ func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGr
 }
 
 func TestPacketConnPerf(t *testing.T) {
+	w, err := os.OpenFile("test.pprof", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pprof.StartCPUProfile(w)
 	var done sync.WaitGroup
 	done.Add(perfClientCount)
 	var allConnected sync.WaitGroup
@@ -245,4 +253,5 @@ func TestPacketConnPerf(t *testing.T) {
 	}
 
 	done.Wait()
+	pprof.StopCPUProfile()
 }
