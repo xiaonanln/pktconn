@@ -167,7 +167,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 type testPacketClient struct {
 }
 
-func (c *testPacketClient) routine(t *testing.T, done *sync.WaitGroup) {
+func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGroup, startSendRecv chan int) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		t.Errorf("connect error: %s", err)
@@ -175,12 +175,16 @@ func (c *testPacketClient) routine(t *testing.T, done *sync.WaitGroup) {
 
 	pc := NewPacketConn(NewBufferedConn(conn, bufferSize, bufferSize))
 
+	allConnected.Done()
+
 	payload := make([]byte, perfPayloadSize)
 	packet := NewPacket()
 	packet.AppendBytes(payload)
 
+	<-startSendRecv
 	stopTime := time.Now().Add(perfDuration)
 	noackCount := 0
+
 	for time.Now().Before(stopTime) {
 		pc.SendPacket(packet)
 		pc.Flush()
@@ -225,10 +229,20 @@ func (c *testPacketClient) routine(t *testing.T, done *sync.WaitGroup) {
 func TestPacketConnPerf(t *testing.T) {
 	var done sync.WaitGroup
 	done.Add(perfClientCount)
+	var allConnected sync.WaitGroup
+	allConnected.Add(perfClientCount)
+	startSendRecv := make(chan int, perfClientCount)
 
 	for i := 0; i < perfClientCount; i++ {
 		client := &testPacketClient{}
-		go client.routine(t, &done)
+		go client.routine(t, &done, &allConnected, startSendRecv)
 	}
+	t.Log("wait for all clients to connected")
+	allConnected.Wait()
+	t.Log("start send/recv ...")
+	for i := 0; i < perfClientCount; i++ {
+		startSendRecv <- 1
+	}
+
 	done.Wait()
 }
