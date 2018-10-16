@@ -9,8 +9,6 @@ import (
 	"unsafe"
 
 	"sync/atomic"
-
-	"sync"
 )
 
 const (
@@ -23,13 +21,11 @@ var (
 	predefinePayloadCapacities []uint32
 
 	packetBufferPools = map[uint32]*fastpool.FastPool{}
-	packetPool        = sync.Pool{
-		New: func() interface{} {
-			p := &Packet{}
-			p.bytes = p.initialBytes[:]
-			return p
-		},
-	}
+	packetPool        = fastpool.NewFastPool(1024, func() interface{} {
+		p := &Packet{}
+		p.bytes = p.initialBytes[:]
+		return p
+	})
 )
 
 func init() {
