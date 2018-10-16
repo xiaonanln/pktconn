@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/xiaonanln/go-simplelogger"
-
 	"unsafe"
 
 	"sync/atomic"
@@ -106,7 +104,7 @@ func (p *Packet) AssureCapacity(need uint32) {
 
 	buffer := packetBufferPools[resizeToCap].Get().([]byte)
 	if len(buffer) != int(resizeToCap+_SIZE_FIELD_SIZE) {
-		simplelogger.Panicf("buffer size should be %d, but is %d", resizeToCap, len(buffer))
+		panic(fmt.Errorf("buffer size should be %d, but is %d", resizeToCap, len(buffer)))
 	}
 	copy(buffer, p.data())
 	oldPayloadCap := p.PayloadCap()
@@ -178,7 +176,7 @@ func (p *Packet) Release() {
 		p.setPayloadLen(0)
 		packetPool.Put(p)
 	} else if refcount < 0 {
-		simplelogger.Panicf("releasing packet with refcount=%d", p.refcount)
+		panic(fmt.Errorf("releasing packet with refcount=%d", p.refcount))
 	}
 }
 
@@ -346,7 +344,7 @@ func (p *Packet) ReadUint64() (v uint64) {
 func (p *Packet) ReadBytes(size uint32) []byte {
 	pos := p.readCursor + _PREPAYLOAD_SIZE
 	if pos > uint32(len(p.bytes)) || pos+size > uint32(len(p.bytes)) {
-		simplelogger.Panicf("Packet %p bytes is %d, but reading %d+%d", p, len(p.bytes), pos, size)
+		panic(fmt.Errorf("Packet %p bytes is %d, but reading %d+%d", p, len(p.bytes), pos, size))
 	}
 
 	bytes := p.bytes[pos : pos+size] // bytes are not copied

@@ -11,13 +11,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/xiaonanln/go-simplelogger"
 )
 
 const (
 	port            = 14572
-	bufferSize      = 8192*2
+	bufferSize      = 8192 * 2
 	flushInterval   = time.Millisecond * 5
 	noackCountLimit = 5000
 	perfClientCount = 1000
@@ -129,7 +127,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
-		simplelogger.Infof("Testing with payload %v", PAYLOAD_LEN)
+		t.Logf("Testing with payload %v", PAYLOAD_LEN)
 
 		packet := pconn.NewPacket()
 		for j := uint32(0); j < PAYLOAD_LEN; j++ {
@@ -233,7 +231,7 @@ func TestPacketConnPerf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    defer w.Close()
+	defer w.Close()
 	pprof.StartCPUProfile(w)
 	defer pprof.StopCPUProfile()
 	var done sync.WaitGroup
@@ -255,10 +253,10 @@ func TestPacketConnPerf(t *testing.T) {
 
 	done.Wait()
 
-    w, err = os.OpenFile("heap.pprof", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-    if err!=nil {
-        t.Fatal(err)
-    }
-    defer w.Close()
-    pprof.WriteHeapProfile(w)
+	w, err = os.OpenFile("heap.pprof", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+	pprof.WriteHeapProfile(w)
 }

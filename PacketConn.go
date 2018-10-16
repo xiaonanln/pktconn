@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 
 	"github.com/pkg/errors"
-	simplelogger "github.com/xiaonanln/go-simplelogger"
 )
 
 const (
@@ -73,7 +72,7 @@ func (pc *PacketConn) NewPacket() *Packet {
 // SendPacket send packets to remote
 func (pc *PacketConn) SendPacket(packet *Packet) error {
 	if atomic.LoadInt64(&packet.refcount) <= 0 {
-		simplelogger.Panicf("sending packet with refcount=%d", packet.refcount)
+		panic(fmt.Errorf("sending packet with refcount=%d", packet.refcount))
 	}
 
 	packet.AddRefCount(1)
