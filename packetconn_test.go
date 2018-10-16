@@ -22,7 +22,7 @@ const (
 	noackCountLimit = 5000
 	perfClientCount = 1000
 	perfPayloadSize = 1024
-	perfDuration    = time.Second * 10
+	perfDuration    = time.Second * 60
 )
 
 type testPacketServer struct {
@@ -233,8 +233,9 @@ func TestPacketConnPerf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+    defer w.Close()
 	pprof.StartCPUProfile(w)
+	defer pprof.StopCPUProfile()
 	var done sync.WaitGroup
 	done.Add(perfClientCount)
 	var allConnected sync.WaitGroup
@@ -253,5 +254,11 @@ func TestPacketConnPerf(t *testing.T) {
 	}
 
 	done.Wait()
-	pprof.StopCPUProfile()
+
+    w, err = os.OpenFile("heap.pprof", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+    if err!=nil {
+        t.Fatal(err)
+    }
+    defer w.Close()
+    pprof.WriteHeapProfile(w)
 }
