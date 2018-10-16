@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/xiaonanln/go-fastpool"
 	"github.com/xiaonanln/go-simplelogger"
+	"sync"
 
 	"unsafe"
 
@@ -14,14 +15,21 @@ import (
 const (
 	_MIN_PAYLOAD_CAP = 128
 	_CAP_GROW_SHIFT  = uint(2)
+
+	_PACKET_POOL_CAPACITY = 8192
 )
+
+type pool interface {
+	Get() interface{}
+	Put(x interface{})
+}
 
 var (
 	packetEndian               = binary.LittleEndian
 	predefinePayloadCapacities []uint32
 
-	packetBufferPools = map[uint32]*fastpool.FastPool{}
-	packetPool        = fastpool.NewFastPool(1024, func() interface{} {
+	packetBufferPools = map[uint32]pool{}
+	packetPool        = fastpool.NewFastPool(_PACKET_POOL_CAPACITY, func() interface{} {
 		p := &Packet{}
 		p.bytes = p.initialBytes[:]
 		return p
@@ -36,11 +44,20 @@ func init() {
 	}
 	predefinePayloadCapacities = append(predefinePayloadCapacities, _MAX_PAYLOAD_LENGTH)
 
+	M := uint32(1 * 1024 * 1024)
 	for _, payloadCap := range predefinePayloadCapacities {
 		payloadCap := payloadCap
-		packetBufferPools[payloadCap] = fastpool.NewFastPool(int(10*1024*1024/payloadCap), func() interface{} {
-			return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
-		})
+		if payloadCap > M {
+			packetBufferPools[payloadCap] = fastpool.NewFastPool(int(M/payloadCap), func() interface{} {
+				return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
+			})
+		} else {
+			packetBufferPools[payloadCap] = &sync.Pool{
+				New: func() interface{} {
+					return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
+				},
+			}
+		}
 	}
 }
 
