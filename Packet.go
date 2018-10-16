@@ -13,8 +13,6 @@ import (
 const (
 	_MIN_PAYLOAD_CAP = 128
 	_CAP_GROW_SHIFT  = uint(2)
-
-	_PACKET_POOL_CAPACITY = 8192
 )
 
 var (
