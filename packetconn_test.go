@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"sync"
 	"sync/atomic"
@@ -50,7 +51,8 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			if IsTimeout(err) {
+			if IsTemporary(err) {
+				runtime.Gosched()
 				continue
 			} else {
 				return err
@@ -90,6 +92,7 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 
 			if err != nil {
 				if IsTemporary(err) {
+					runtime.Gosched()
 					continue
 				} else {
 					break
@@ -144,6 +147,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 			recvPacket, err = pconn.Recv()
 			if err != nil {
 				if IsTemporary(err) {
+					runtime.Gosched()
 					continue
 				} else {
 					t.Fatal(err)
@@ -195,6 +199,7 @@ func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGr
 				_, err := pc.Recv()
 				if err != nil {
 					if IsTemporary(err) {
+						runtime.Gosched()
 						continue
 					} else {
 						t.Fatalf("recv failed: %s", err)
@@ -212,6 +217,7 @@ func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGr
 			_, err := pc.Recv()
 			if err != nil {
 				if IsTemporary(err) {
+					runtime.Gosched()
 					continue
 				} else {
 					t.Fatalf("recv failed: %s", err)

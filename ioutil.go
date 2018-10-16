@@ -3,6 +3,7 @@ package packetconn
 import (
 	"io"
 	"net"
+	"runtime"
 )
 
 // WriteAll write all bytes of data to the writer
@@ -19,8 +20,12 @@ func WriteAll(conn io.Writer, data []byte) error {
 			left -= n
 		}
 
-		if err != nil && !IsTimeout(err) {
-			return err
+		if err != nil {
+			if !IsTemporary(err) {
+				return err
+			} else {
+				runtime.Gosched()
+			}
 		}
 	}
 	return nil
@@ -40,8 +45,12 @@ func ReadAll(conn io.Reader, data []byte) error {
 			left -= n
 		}
 
-		if err != nil && !IsTimeout(err) {
-			return err
+		if err != nil {
+			if !IsTemporary(err) {
+				return err
+			} else {
+				runtime.Gosched()
+			}
 		}
 	}
 	return nil
