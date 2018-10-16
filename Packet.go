@@ -3,6 +3,7 @@ package packetconn
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/xiaonanln/go-fastpool"
 	"github.com/xiaonanln/go-simplelogger"
 
 	"unsafe"
@@ -21,7 +22,7 @@ var (
 	packetEndian               = binary.LittleEndian
 	predefinePayloadCapacities []uint32
 
-	packetBufferPools = map[uint32]*sync.Pool{}
+	packetBufferPools = map[uint32]*fastpool.FastPool{}
 	packetPool        = sync.Pool{
 		New: func() interface{} {
 			p := &Packet{}
@@ -41,11 +42,9 @@ func init() {
 
 	for _, payloadCap := range predefinePayloadCapacities {
 		payloadCap := payloadCap
-		packetBufferPools[payloadCap] = &sync.Pool{
-			New: func() interface{} {
-				return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
-			},
-		}
+		packetBufferPools[payloadCap] = fastpool.NewFastPool(int(10*1024*1024/payloadCap), func() interface{} {
+			return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
+		})
 	}
 }
 
