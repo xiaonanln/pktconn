@@ -2,6 +2,7 @@ package packetconn
 
 import (
 	"fmt"
+	crc322 "hash/crc32"
 	"net"
 
 	"encoding/binary"
@@ -47,6 +48,7 @@ type PacketConn struct {
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
+	flushLock          sync.Mutex
 
 	// buffers and infos for receiving a packet
 	payloadLenBuf         [_SIZE_FIELD_SIZE]byte
@@ -84,6 +86,9 @@ func (pc *PacketConn) SendPacket(packet *Packet) error {
 
 // Flush connection writes
 func (pc *PacketConn) Flush() (err error) {
+	pc.flushLock.Lock()
+	defer pc.flushLock.Unlock()
+
 	pc.pendingPacketsLock.Lock()
 	if len(pc.pendingPackets) == 0 { // no packets to send, common to happen, so handle efficiently
 		pc.pendingPacketsLock.Unlock()
@@ -99,7 +104,7 @@ func (pc *PacketConn) Flush() (err error) {
 		// only 1 packet to send, just send it directly, no need to use send buffer
 		packet := packets[0]
 
-		err = WriteAll(pc.conn, packet.data())
+		err = pc.writePacket(packet)
 		packet.Release()
 		if err == nil {
 			err = tryFlush(pc.conn)
@@ -108,8 +113,12 @@ func (pc *PacketConn) Flush() (err error) {
 	}
 
 	for _, packet := range packets {
-		WriteAll(pc.conn, packet.data())
+		err = pc.writePacket(packet)
 		packet.Release()
+
+		if err != nil {
+			break
+		}
 	}
 
 	// now we send all data in the send buffer
@@ -117,6 +126,21 @@ func (pc *PacketConn) Flush() (err error) {
 		err = tryFlush(pc.conn)
 	}
 	return
+}
+
+func (pc *PacketConn) writePacket(packet *Packet) error {
+	var _crc32Buffer [4]byte
+	crc32Buffer := _crc32Buffer[:]
+
+	pdata := packet.data()
+	err := WriteAll(pc.conn, pdata)
+	if err != nil {
+		return err
+	}
+	payloadCrc := crc322.ChecksumIEEE(pdata)
+
+	packetEndian.PutUint32(crc32Buffer, payloadCrc)
+	return WriteAll(pc.conn, crc32Buffer)
 }
 
 // SetRecvDeadline sets the receive deadline
