@@ -21,7 +21,7 @@ const (
 	bufferSize      = 8192 * 2
 	recvChanSize    = 1000
 	flushInterval   = time.Millisecond * 5
-	noackCountLimit = 5000
+	noackCountLimit = 0
 	perfClientCount = 1000
 	perfPayloadSize = 1024
 	perfDuration    = time.Second * 10
@@ -165,8 +165,9 @@ restart:
 		}
 	}
 
-	for range pc.Recv {
-
+	for noackCount > 0 {
+		<-pc.Recv
+		noackCount -= 1
 	}
 	pc.Close()
 	done.Done()
