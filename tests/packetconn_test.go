@@ -135,9 +135,12 @@ type testPacketClient struct {
 }
 
 func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGroup, startSendRecv chan int) {
+restart:
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		t.Errorf("connect error: %s", err)
+		time.Sleep(time.Second)
+		goto restart
 	}
 
 	pc := packetconn.NewPacketConn(packetconn.NewBufferedConn(conn, bufferSize, bufferSize), recvChanSize, flushInterval)
