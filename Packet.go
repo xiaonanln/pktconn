@@ -37,21 +37,12 @@ func init() {
 	}
 	predefinePayloadCapacities = append(predefinePayloadCapacities, _MAX_PAYLOAD_LENGTH)
 
-	M := uint32(10 * 1024 * 1024)
 	for _, payloadCap := range predefinePayloadCapacities {
 		payloadCap := payloadCap
-		if payloadCap <= M {
-			packetBufferPools[payloadCap] = &sync.Pool{
-				New: func() interface{} {
-					return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
-				},
-			}
-		} else {
-			packetBufferPools[payloadCap] = &sync.Pool{
-				New: func() interface{} {
-					return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
-				},
-			}
+		packetBufferPools[payloadCap] = &sync.Pool{
+			New: func() interface{} {
+				return make([]byte, _PREPAYLOAD_SIZE+payloadCap)
+			},
 		}
 	}
 }
