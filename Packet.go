@@ -3,6 +3,7 @@ package packetconn
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"sync"
 
 	"unsafe"
@@ -251,24 +252,22 @@ func UnpackFloat32(order binary.ByteOrder, b []byte) (f float32) {
 
 // AppendFloat32 appends one float32 to the end of payload
 func (p *Packet) AppendFloat32(f float32) {
-	p.AppendUint32(*(*uint32)(unsafe.Pointer(&f)))
+	p.AppendUint32(math.Float32bits(f))
 }
 
 // ReadFloat32 reads one float32 from the beginning of unread payload
 func (p *Packet) ReadFloat32() float32 {
-	v := p.ReadUint32()
-	return *(*float32)(unsafe.Pointer(&v))
+	return math.Float32frombits(p.ReadUint32())
 }
 
 // AppendFloat64 appends one float64 to the end of payload
 func (p *Packet) AppendFloat64(f float64) {
-	p.AppendUint64(*(*uint64)(unsafe.Pointer(&f)))
+	p.AppendUint64(math.Float64bits(f))
 }
 
 // ReadFloat64 reads one float64 from the beginning of unread payload
 func (p *Packet) ReadFloat64() float64 {
-	v := p.ReadUint64()
-	return *(*float64)(unsafe.Pointer(&v))
+	return math.Float64frombits(p.ReadUint64())
 }
 
 // AppendBytes appends slice of bytes to the end of payload
