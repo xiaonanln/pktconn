@@ -7,6 +7,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	errPayloadTooLarge = errors.Errorf("payload too large")
+)
+
 type timeoutError interface {
 	Timeout() bool // Is it a timeout error
 }

@@ -2,18 +2,13 @@ package packetconn
 
 import (
 	"fmt"
-	crc322 "hash/crc32"
 	"net"
-
-	"encoding/binary"
 
 	"sync"
 
 	"time"
 
 	"sync/atomic"
-
-	"github.com/pkg/errors"
 )
 
 const (
@@ -23,56 +18,52 @@ const (
 	_MAX_PAYLOAD_LENGTH = _MAX_PACKET_SIZE - _PREPAYLOAD_SIZE
 )
 
-var (
-	// NETWORK_ENDIAN is the network Endian of connections
-	NETWORK_ENDIAN = binary.LittleEndian
-	errRecvAgain   = _ErrRecvAgain{}
-)
-
-type _ErrRecvAgain struct{}
-
-func (err _ErrRecvAgain) Error() string {
-	return "recv again"
-}
-
-func (err _ErrRecvAgain) Temporary() bool {
-	return true
-}
-
-func (err _ErrRecvAgain) Timeout() bool {
-	return true
-}
-
 // PacketConn is a connection that send and receive data packets upon a network stream connection
 type PacketConn struct {
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
-	flushLock          sync.Mutex
-
-	// buffers and infos for receiving a packet
-	payloadLenBuf         [_SIZE_FIELD_SIZE]byte
-	payloadLenBytesRecved int
-	recvTotalPayloadLen   uint32
-	recvedPayloadLen      uint32
-	recvingPacket         *Packet
+	Recv               chan *Packet
 }
 
 // NewPacketConn creates a packet connection based on network connection
-func NewPacketConn(conn net.Conn) *PacketConn {
+func NewPacketConn(conn net.Conn, recvChanSize int, flushInterval time.Duration) *PacketConn {
 	pc := &PacketConn{
 		conn: conn,
+		Recv: make(chan *Packet, recvChanSize),
 	}
+	go pc.recvRoutine()
+	go pc.flushRoutine(flushInterval)
 	return pc
 }
 
-// NewPacket allocates a new packet (usually for sending)
-func (pc *PacketConn) NewPacket() *Packet {
-	return allocPacket()
+func (pc *PacketConn) flushRoutine(interval time.Duration) {
+	for {
+		err := pc.flush()
+		if err != nil {
+			break
+		}
+
+		time.Sleep(interval)
+	}
 }
 
-// SendPacket send packets to remote
-func (pc *PacketConn) SendPacket(packet *Packet) error {
+func (pc *PacketConn) recvRoutine() {
+	defer close(pc.Recv)
+	defer pc.Close()
+
+	for {
+		packet, err := pc.recv()
+		if err != nil {
+			break
+		}
+
+		pc.Recv <- packet
+	}
+}
+
+// Send send packets to remote
+func (pc *PacketConn) Send(packet *Packet) error {
 	if atomic.LoadInt64(&packet.refcount) <= 0 {
 		panic(fmt.Errorf("sending packet with refcount=%d", packet.refcount))
 	}
@@ -85,10 +76,7 @@ func (pc *PacketConn) SendPacket(packet *Packet) error {
 }
 
 // Flush connection writes
-func (pc *PacketConn) Flush() (err error) {
-	pc.flushLock.Lock()
-	defer pc.flushLock.Unlock()
-
+func (pc *PacketConn) flush() (err error) {
 	pc.pendingPacketsLock.Lock()
 	if len(pc.pendingPackets) == 0 { // no packets to send, common to happen, so handle efficiently
 		pc.pendingPacketsLock.Unlock()
@@ -129,18 +117,19 @@ func (pc *PacketConn) Flush() (err error) {
 }
 
 func (pc *PacketConn) writePacket(packet *Packet) error {
-	var _crc32Buffer [4]byte
-	crc32Buffer := _crc32Buffer[:]
+	//var _crc32Buffer [4]byte
+	//crc32Buffer := _crc32Buffer[:]
 
 	pdata := packet.data()
 	err := WriteAll(pc.conn, pdata)
 	if err != nil {
 		return err
 	}
-	payloadCrc := crc322.ChecksumIEEE(pdata)
 
-	packetEndian.PutUint32(crc32Buffer, payloadCrc)
-	return WriteAll(pc.conn, crc32Buffer)
+	return nil
+	//payloadCrc := crc322.ChecksumIEEE(pdata)
+	//packetEndian.PutUint32(crc32Buffer, payloadCrc)
+	//return WriteAll(pc.conn, crc32Buffer)
 }
 
 // SetRecvDeadline sets the receive deadline
@@ -148,58 +137,38 @@ func (pc *PacketConn) SetRecvDeadline(deadline time.Time) error {
 	return pc.conn.SetReadDeadline(deadline)
 }
 
-// Recv receives the next packet
-func (pc *PacketConn) Recv() (*Packet, error) {
-	if pc.payloadLenBytesRecved < _SIZE_FIELD_SIZE {
-		// receive more of payload len bytes
-		n, err := pc.conn.Read(pc.payloadLenBuf[pc.payloadLenBytesRecved:])
-		pc.payloadLenBytesRecved += n
-		if pc.payloadLenBytesRecved < _SIZE_FIELD_SIZE {
-			if err == nil {
-				err = errRecvAgain
-			}
-			return nil, err // packet not finished yet
-		}
+// recv receives the next packet
+func (pc *PacketConn) recv() (*Packet, error) {
+	var payloadSizeBuffer [4]byte
+	//var crcChecksumBuffer [4]byte
+	var err error
 
-		pc.recvTotalPayloadLen = NETWORK_ENDIAN.Uint32(pc.payloadLenBuf[:])
-
-		if pc.recvTotalPayloadLen == 0 || pc.recvTotalPayloadLen > _MAX_PAYLOAD_LENGTH {
-			err := errors.Errorf("invalid payload length: %v", pc.recvTotalPayloadLen)
-			pc.resetRecvStates()
-			pc.Close()
-			return nil, err
-		}
-
-		pc.recvedPayloadLen = 0
-		pc.recvingPacket = NewPacket()
-		pc.recvingPacket.AssureCapacity(pc.recvTotalPayloadLen)
+	err = ReadAll(pc.conn, payloadSizeBuffer[:])
+	if err != nil {
+		return nil, err
 	}
 
-	// now all bytes of payload len is received, start receiving payload
-	n, err := pc.conn.Read(pc.recvingPacket.bytes[_PREPAYLOAD_SIZE+pc.recvedPayloadLen : _PREPAYLOAD_SIZE+pc.recvTotalPayloadLen])
-	pc.recvedPayloadLen += uint32(n)
-
-	if pc.recvedPayloadLen == pc.recvTotalPayloadLen {
-		// full packet received, return the packet
-		packet := pc.recvingPacket
-		packet.setPayloadLen(pc.recvTotalPayloadLen)
-		pc.resetRecvStates()
-
-		return packet, nil
+	payloadSize := packetEndian.Uint32(payloadSizeBuffer[:])
+	if payloadSize > _MAX_PAYLOAD_LENGTH {
+		return nil, errPayloadTooLarge
 	}
 
-	if err == nil {
-		err = errRecvAgain
+	// allocate a packet to receive payload
+	packet := NewPacket()
+	packet.Src = pc
+	packet.AssureCapacity(payloadSize)
+	err = ReadAll(pc.conn, packet.bytes[_PREPAYLOAD_SIZE:_PREPAYLOAD_SIZE+payloadSize])
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+
+	packet.setPayloadLen(payloadSize)
+	return packet, nil
 }
 
-func (pc *PacketConn) resetRecvStates() {
-	pc.payloadLenBytesRecved = 0
-	pc.recvTotalPayloadLen = 0
-	pc.recvedPayloadLen = 0
-	pc.recvingPacket = nil
-}
+//func (pc *PacketConn) recvAll(b []byte) error {
+//	return ReadAll(pc.conn, b)
+//}
 
 // Close the connection
 func (pc *PacketConn) Close() error {

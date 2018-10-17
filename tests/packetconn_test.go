@@ -1,4 +1,4 @@
-package packetconn
+package tests
 
 import (
 	"fmt"
@@ -12,16 +12,19 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	packetconn "github.com/xiaonanln/go-packetconn"
 )
 
 const (
 	port            = 14572
 	bufferSize      = 8192 * 2
+	recvChanSize    = 1000
 	flushInterval   = time.Millisecond * 5
 	noackCountLimit = 5000
 	perfClientCount = 1000
 	perfPayloadSize = 1024
-	perfDuration    = time.Second * 60
+	perfDuration    = time.Second * 10
 )
 
 type testPacketServer struct {
@@ -51,7 +54,7 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			if IsTemporary(err) {
+			if packetconn.IsTemporary(err) {
 				runtime.Gosched()
 				continue
 			} else {
@@ -66,38 +69,13 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 
 func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
-		pc := NewPacketConn(NewBufferedConn(conn, bufferSize, bufferSize))
+		conn = packetconn.NewBufferedConn(conn, bufferSize, bufferSize)
+		pc := packetconn.NewPacketConn(conn, recvChanSize, flushInterval)
 
-		go func() {
-			for {
-				err := pc.Flush()
-				if err != nil && !IsTemporary(err) {
-					log.Printf("packet conn quit")
-					break
-				}
-
-				time.Sleep(flushInterval)
-			}
-		}()
-
-		for {
-			pkt, err := pc.Recv()
-
-			if pkt != nil {
-				//log.Printf("Recv packet with payload %d", pkt.GetPayloadLen())
-				pc.SendPacket(pkt)
-				pkt.Release()
-				atomic.AddUint64(&ts.handlePacketCount, 1)
-			}
-
-			if err != nil {
-				if IsTemporary(err) {
-					runtime.Gosched()
-					continue
-				} else {
-					break
-				}
-			}
+		for pkt := range pc.Recv {
+			pc.Send(pkt)
+			pkt.Release()
+			atomic.AddUint64(&ts.handlePacketCount, 1)
 		}
 	}()
 }
@@ -124,38 +102,23 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 	}
 
 	if useBufferedConn {
-		conn = NewBufferedConn(conn, bufferSize, bufferSize)
+		conn = packetconn.NewBufferedConn(conn, bufferSize, bufferSize)
 	}
-	pconn := NewPacketConn(conn)
+	pconn := packetconn.NewPacketConn(conn, recvChanSize, flushInterval)
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
 		t.Logf("Testing with payload %v", PAYLOAD_LEN)
 
-		packet := pconn.NewPacket()
+		packet := packetconn.NewPacket()
 		for j := uint32(0); j < PAYLOAD_LEN; j++ {
 			packet.AppendByte(byte(rand.Intn(256)))
 		}
 		if packet.GetPayloadLen() != PAYLOAD_LEN {
 			t.Errorf("payload should be %d, but is %d", PAYLOAD_LEN, packet.GetPayloadLen())
 		}
-		pconn.SendPacket(packet)
-		pconn.Flush()
-		var recvPacket *Packet
-		var err error
-		for {
-			recvPacket, err = pconn.Recv()
-			if err != nil {
-				if IsTemporary(err) {
-					runtime.Gosched()
-					continue
-				} else {
-					t.Fatal(err)
-				}
-			} else {
-				break
-			}
-		}
+		pconn.Send(packet)
+		recvPacket := <-pconn.Recv
 
 		if packet.GetPayloadLen() != recvPacket.GetPayloadLen() {
 			t.Errorf("send packet len %d, but recv len %d", packet.GetPayloadLen(), recvPacket.GetPayloadLen())
@@ -177,12 +140,12 @@ func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGr
 		t.Errorf("connect error: %s", err)
 	}
 
-	pc := NewPacketConn(NewBufferedConn(conn, bufferSize, bufferSize))
+	pc := packetconn.NewPacketConn(packetconn.NewBufferedConn(conn, bufferSize, bufferSize), recvChanSize, flushInterval)
 
 	allConnected.Done()
 
 	payload := make([]byte, perfPayloadSize)
-	packet := NewPacket()
+	packet := packetconn.NewPacket()
 	packet.AppendBytes(payload)
 
 	<-startSendRecv
@@ -190,43 +153,17 @@ func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGr
 	noackCount := 0
 
 	for time.Now().Before(stopTime) {
-		pc.SendPacket(packet)
-		pc.Flush()
+		pc.Send(packet)
 		noackCount += 1
 
 		for noackCount > noackCountLimit {
-			for {
-				_, err := pc.Recv()
-				if err != nil {
-					if IsTemporary(err) {
-						runtime.Gosched()
-						continue
-					} else {
-						t.Fatalf("recv failed: %s", err)
-					}
-				} else {
-					noackCount -= 1
-					break
-				}
-			}
+			<-pc.Recv
+			noackCount -= 1
 		}
 	}
 
-	for noackCount > 0 {
-		for {
-			_, err := pc.Recv()
-			if err != nil {
-				if IsTemporary(err) {
-					runtime.Gosched()
-					continue
-				} else {
-					t.Fatalf("recv failed: %s", err)
-				}
-			} else {
-				noackCount -= 1
-				break
-			}
-		}
+	for range pc.Recv {
+
 	}
 	pc.Close()
 	done.Done()
