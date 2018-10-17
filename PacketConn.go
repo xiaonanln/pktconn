@@ -166,10 +166,6 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	return packet, nil
 }
 
-//func (pc *PacketConn) recvAll(b []byte) error {
-//	return ReadAll(pc.conn, b)
-//}
-
 // Close the connection
 func (pc *PacketConn) Close() error {
 	return pc.conn.Close()
