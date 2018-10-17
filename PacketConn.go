@@ -28,6 +28,10 @@ type PacketConn struct {
 
 // NewPacketConn creates a packet connection based on network connection
 func NewPacketConn(conn net.Conn, recvChanSize int, flushInterval time.Duration) *PacketConn {
+	if conn == nil {
+		panic(fmt.Errorf("conn is nil"))
+	}
+
 	pc := &PacketConn{
 		conn: conn,
 		Recv: make(chan *Packet, recvChanSize),
