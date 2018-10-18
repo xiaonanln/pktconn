@@ -63,6 +63,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 }
 
 func main() {
+    runtime.GOMAXPROCS(1)
 	var server testPacketServer
 	server.serve(fmt.Sprintf("localhost:%d", port))
 }
