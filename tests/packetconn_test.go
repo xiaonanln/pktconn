@@ -24,7 +24,7 @@ const (
 	noackCountLimit = 1000
 	perfClientCount = 1000
 	perfPayloadSize = 1024
-	perfDuration    = time.Second * 10
+	perfDuration    = time.Second * 5
 )
 
 type testPacketServer struct {
