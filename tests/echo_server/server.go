@@ -50,20 +50,16 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		}
 
 		log.Printf("%s connected", conn.RemoteAddr())
-		ts.serveTCPConn(conn)
+		go func() {
+			pc := packetconn.NewPacketConn(conn)
+
+			for pkt := range pc.Recv {
+				pc.Send(pkt)
+				pkt.Release()
+				atomic.AddUint64(&ts.handlePacketCount, 1)
+			}
+		}()
 	}
-}
-
-func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
-	go func() {
-		pc := packetconn.NewPacketConn(conn)
-
-		for pkt := range pc.Recv {
-			pc.Send(pkt)
-			pkt.Release()
-			atomic.AddUint64(&ts.handlePacketCount, 1)
-		}
-	}()
 }
 
 func main() {
