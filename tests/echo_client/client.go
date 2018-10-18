@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -19,7 +20,13 @@ const (
 	perfPayloadSizeMax = 2048
 )
 
+var (
+	serverAddr = ""
+)
+
 func main() {
+	serverAddr = os.Args[1]
+	log.Printf("Server addr: %s", serverAddr)
 	var done sync.WaitGroup
 	done.Add(perfClientCount)
 	var allConnected sync.WaitGroup
@@ -47,7 +54,7 @@ func (c *testPacketClient) routine(done, allConnected *sync.WaitGroup, startSend
 	defer done.Done()
 
 restart:
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", serverAddr, port))
 	if err != nil {
 		log.Printf("connect error: %s", err)
 		time.Sleep(time.Second)
