@@ -124,15 +124,17 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 			t.Errorf("payload should be %d, but is %d", PAYLOAD_LEN, packet.GetPayloadLen())
 		}
 		pconn.Send(packet)
-		recvPacket := <-pconn.Recv
-
-		if packet.GetPayloadLen() != recvPacket.GetPayloadLen() {
-			t.Errorf("send packet len %d, but recv len %d", packet.GetPayloadLen(), recvPacket.GetPayloadLen())
-		}
-		for i := uint32(0); i < packet.GetPayloadLen(); i++ {
-			if packet.Payload()[i] != recvPacket.Payload()[i] {
-				t.Errorf("send packet and recv packet mismatch on byte index %d", i)
+		if recvPacket, ok := <-pconn.Recv; ok {
+			if packet.GetPayloadLen() != recvPacket.GetPayloadLen() {
+				t.Errorf("send packet len %d, but recv len %d", packet.GetPayloadLen(), recvPacket.GetPayloadLen())
 			}
+			for i := uint32(0); i < packet.GetPayloadLen(); i++ {
+				if packet.Payload()[i] != recvPacket.Payload()[i] {
+					t.Errorf("send packet and recv packet mismatch on byte index %d", i)
+				}
+			}
+		} else {
+			t.Fatalf("can not recv packet")
 		}
 	}
 }

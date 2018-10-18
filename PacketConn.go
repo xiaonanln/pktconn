@@ -2,6 +2,7 @@ package packetconn
 
 import (
 	"fmt"
+	"hash/crc32"
 	"net"
 
 	"sync"
@@ -177,33 +178,35 @@ func (pc *PacketConn) flush() (err error) {
 }
 
 func (pc *PacketConn) writePacket(packet *Packet) error {
-	//var _crc32Buffer [4]byte
-	//crc32Buffer := _crc32Buffer[:]
-
 	pdata := packet.data()
 	err := WriteAll(pc.conn, pdata)
 	if err != nil {
 		return err
 	}
 
-	return nil
-	//payloadCrc := crc322.ChecksumIEEE(pdata)
-	//packetEndian.PutUint32(crc32Buffer, payloadCrc)
-	//return WriteAll(pc.conn, crc32Buffer)
+	if pc.Config.CrcChecksum {
+		var crc32Buffer [4]byte
+		payloadCrc := crc32.ChecksumIEEE(pdata)
+		packetEndian.PutUint32(crc32Buffer[:], payloadCrc)
+		return WriteAll(pc.conn, crc32Buffer[:])
+	} else {
+		return nil
+	}
 }
 
 // recv receives the next packet
 func (pc *PacketConn) recv() (*Packet, error) {
-	var payloadSizeBuffer [4]byte
+	var uint32Buffer [4]byte
 	//var crcChecksumBuffer [4]byte
 	var err error
 
-	err = ReadAll(pc.conn, payloadSizeBuffer[:])
+	// receive payload length (uint32)
+	err = ReadAll(pc.conn, uint32Buffer[:])
 	if err != nil {
 		return nil, err
 	}
 
-	payloadSize := packetEndian.Uint32(payloadSizeBuffer[:])
+	payloadSize := packetEndian.Uint32(uint32Buffer[:])
 	if payloadSize > MaxPayloadLength {
 		return nil, errPayloadTooLarge
 	}
@@ -218,6 +221,20 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	}
 
 	packet.setPayloadLen(payloadSize)
+
+	// receive checksum (uint32)
+	if pc.Config.CrcChecksum {
+		err = ReadAll(pc.conn, uint32Buffer[:])
+		if err != nil {
+			return nil, err
+		}
+
+		payloadCrc := crc32.ChecksumIEEE(packet.data())
+		if payloadCrc != packetEndian.Uint32(uint32Buffer[:]) {
+			return nil, errChecksumError
+		}
+	}
+
 	return packet, nil
 }
 
