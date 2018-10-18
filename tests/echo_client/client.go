@@ -14,7 +14,8 @@ import (
 const (
 	port            = 14572
 	noackCountLimit = 1000
-	perfClientCount = 2000
+	perfClientCount = 3000
+	perfPayloadSizeMin = 0
 	perfPayloadSizeMax = 2048
 )
 
@@ -58,7 +59,7 @@ restart:
 
 	allConnected.Done()
 
-	payload := make([]byte, rand.Intn(perfPayloadSizeMax))
+	payload := make([]byte, perfPayloadSizeMin + rand.Intn(perfPayloadSizeMax - perfPayloadSizeMin+1))
 	packet := packetconn.NewPacket()
 	packet.AppendBytes(payload)
 
