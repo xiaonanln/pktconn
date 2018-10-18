@@ -135,11 +135,6 @@ func (pc *PacketConn) writePacket(packet *Packet) error {
 	//return WriteAll(pc.conn, crc32Buffer)
 }
 
-// SetRecvDeadline sets the receive deadline
-func (pc *PacketConn) SetRecvDeadline(deadline time.Time) error {
-	return pc.conn.SetReadDeadline(deadline)
-}
-
 // recv receives the next packet
 func (pc *PacketConn) recv() (*Packet, error) {
 	var payloadSizeBuffer [4]byte
