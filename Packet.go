@@ -238,19 +238,6 @@ func (p *Packet) AppendUint64(v uint64) {
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 8
 }
 
-// PackFloat32 packs float32 in specified byte order
-func PackFloat32(order binary.ByteOrder, b []byte, f float32) {
-	fi := *(*uint32)(unsafe.Pointer(&f)) // convert bits from float32 to uint32
-	order.PutUint32(b, fi)
-}
-
-// UnpackFloat32 unpacks float32 in specified byte order
-func UnpackFloat32(order binary.ByteOrder, b []byte) (f float32) {
-	fi := order.Uint32(b)
-	f = *(*float32)(unsafe.Pointer(&fi))
-	return
-}
-
 // AppendFloat32 appends one float32 to the end of payload
 func (p *Packet) AppendFloat32(f float32) {
 	p.AppendUint32(math.Float32bits(f))

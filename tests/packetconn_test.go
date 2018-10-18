@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	port            = 14572
-	bufferSize      = 8192 * 2
-	recvChanSize    = 1000
-	flushInterval   = time.Millisecond * 5
+	port       = 14572
+	bufferSize = 8192 * 2
+	//recvChanSize    = 1000
+	//flushInterval   = time.Millisecond * 5
 	noackCountLimit = 5000
 	perfClientCount = 1000
 	perfPayloadSize = 1024
@@ -69,8 +69,7 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 
 func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
-		conn = packetconn.NewBufferedConn(conn, bufferSize, bufferSize)
-		pc := packetconn.NewPacketConn(conn, recvChanSize, flushInterval)
+		pc := packetconn.NewPacketConn(conn)
 
 		for pkt := range pc.Recv {
 			pc.Send(pkt)
@@ -101,10 +100,17 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		t.Errorf("connect error: %s", err)
 	}
 
+	cfg := packetconn.DefaultConfig()
+
 	if useBufferedConn {
-		conn = packetconn.NewBufferedConn(conn, bufferSize, bufferSize)
+		cfg.ReadBufferSize = bufferSize
+		cfg.WriteBufferSize = bufferSize
+	} else {
+		cfg.ReadBufferSize = 0
+		cfg.WriteBufferSize = 0
 	}
-	pconn := packetconn.NewPacketConn(conn, recvChanSize, flushInterval)
+
+	pconn := packetconn.NewPacketConnWithConfig(conn, cfg)
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
@@ -143,7 +149,7 @@ restart:
 		goto restart
 	}
 
-	pc := packetconn.NewPacketConn(packetconn.NewBufferedConn(conn, bufferSize, bufferSize), recvChanSize, flushInterval)
+	pc := packetconn.NewPacketConn(conn)
 
 	allConnected.Done()
 

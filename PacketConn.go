@@ -12,10 +12,33 @@ import (
 )
 
 const (
+	MaxPayloadLength       = 32 * 1024 * 1024
+	defaultRecvChanSize    = 1000
+	defaultFlushInterval   = time.Millisecond * 5
+	defaultReadBufferSize  = 16384
+	defaultWriteBufferSize = 16384
+
 	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
 	prePayloadSize    = payloadLengthSize
-	MaxPayloadLength  = 16 * 1024 * 1024
 )
+
+type Config struct {
+	RecvChanSize    int           `json:"recv_chan_size"`
+	FlushInterval   time.Duration `json:"flush_interval"`
+	CrcChecksum     bool          `json:"crc_checksum"`
+	ReadBufferSize  int           `json:"read_buffer_size"`
+	WriteBufferSize int           `json:"write_buffer_size"`
+}
+
+func DefaultConfig() *Config {
+	return &Config{
+		RecvChanSize:    defaultRecvChanSize,
+		FlushInterval:   defaultFlushInterval,
+		CrcChecksum:     true,
+		ReadBufferSize:  defaultReadBufferSize,
+		WriteBufferSize: defaultWriteBufferSize,
+	}
+}
 
 // PacketConn is a connection that send and receive data packets upon a network stream connection
 type PacketConn struct {
@@ -23,21 +46,55 @@ type PacketConn struct {
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
 	Recv               chan *Packet
+	Config             Config
 }
 
 // NewPacketConn creates a packet connection based on network connection
-func NewPacketConn(conn net.Conn, recvChanSize int, flushInterval time.Duration) *PacketConn {
+func NewPacketConn(conn net.Conn) *PacketConn {
+	return NewPacketConnWithConfig(conn, DefaultConfig())
+}
+
+func NewPacketConnWithConfig(conn net.Conn, cfg *Config) *PacketConn {
 	if conn == nil {
 		panic(fmt.Errorf("conn is nil"))
 	}
 
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
+
+	validateConfig(cfg)
+
+	if cfg.ReadBufferSize > 0 || cfg.WriteBufferSize > 0 {
+		conn = newBufferedConn(conn, cfg.ReadBufferSize, cfg.WriteBufferSize)
+	}
+
 	pc := &PacketConn{
-		conn: conn,
-		Recv: make(chan *Packet, recvChanSize),
+		conn:   conn,
+		Recv:   make(chan *Packet, cfg.RecvChanSize),
+		Config: *cfg,
 	}
 	go pc.recvRoutine()
-	go pc.flushRoutine(flushInterval)
+	go pc.flushRoutine(cfg.FlushInterval)
 	return pc
+}
+
+func validateConfig(cfg *Config) {
+	if cfg.FlushInterval < 0 {
+		panic(fmt.Errorf("negative flush interval"))
+	}
+
+	if cfg.RecvChanSize < 0 {
+		panic(fmt.Errorf("negative recv chan size"))
+	}
+
+	if cfg.ReadBufferSize < 0 {
+		panic(fmt.Errorf("negative read buffer size"))
+	}
+
+	if cfg.WriteBufferSize < 0 {
+		panic(fmt.Errorf("negative write buffer size"))
+	}
 }
 
 func (pc *PacketConn) flushRoutine(interval time.Duration) {

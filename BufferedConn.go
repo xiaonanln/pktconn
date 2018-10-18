@@ -5,16 +5,16 @@ import (
 	"net"
 )
 
-// BufferedConn provides buffered write to connections
-type BufferedConn struct {
+// bufferedConn provides buffered write to connections
+type bufferedConn struct {
 	net.Conn
 	bufReader *bufio.Reader
 	bufWriter *bufio.Writer
 }
 
 // NewBufferedConn creates a new connection with buffered write based on underlying connection
-func NewBufferedConn(conn net.Conn, readBufferSize, writeBufferSize int) *BufferedConn {
-	brc := &BufferedConn{
+func newBufferedConn(conn net.Conn, readBufferSize, writeBufferSize int) *bufferedConn {
+	brc := &bufferedConn{
 		Conn: conn,
 	}
 	brc.bufReader = bufio.NewReaderSize(conn, readBufferSize)
@@ -23,15 +23,15 @@ func NewBufferedConn(conn net.Conn, readBufferSize, writeBufferSize int) *Buffer
 }
 
 // Read
-func (bc *BufferedConn) Read(p []byte) (int, error) {
+func (bc *bufferedConn) Read(p []byte) (int, error) {
 	return bc.bufReader.Read(p)
 }
 
-func (bc *BufferedConn) Write(p []byte) (int, error) {
+func (bc *bufferedConn) Write(p []byte) (int, error) {
 	return bc.bufWriter.Write(p)
 }
 
-func (bc *BufferedConn) Flush() error {
+func (bc *bufferedConn) Flush() error {
 	err := bc.bufWriter.Flush()
 	if err != nil {
 		return err
