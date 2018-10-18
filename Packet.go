@@ -156,6 +156,8 @@ func (p *Packet) Release() {
 	refcount := atomic.AddInt64(&p.refcount, -1)
 
 	if refcount == 0 {
+		p.Src = nil
+
 		payloadCap := p.PayloadCap()
 		if payloadCap > minPayloadCap {
 			buffer := p.bytes
