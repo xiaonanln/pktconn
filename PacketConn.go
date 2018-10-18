@@ -46,7 +46,7 @@ type PacketConn struct {
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
-	Recv               chan *Packet
+	recvChan           chan *Packet
 	Config             Config
 }
 
@@ -71,9 +71,9 @@ func NewPacketConnWithConfig(conn net.Conn, cfg *Config) *PacketConn {
 	}
 
 	pc := &PacketConn{
-		conn:   conn,
-		Recv:   make(chan *Packet, cfg.RecvChanSize),
-		Config: *cfg,
+		conn:     conn,
+		recvChan: make(chan *Packet, cfg.RecvChanSize),
+		Config:   *cfg,
 	}
 	go pc.recvRoutine()
 	go pc.flushRoutine(cfg.FlushInterval)
@@ -110,7 +110,8 @@ func (pc *PacketConn) flushRoutine(interval time.Duration) {
 }
 
 func (pc *PacketConn) recvRoutine() {
-	defer close(pc.Recv)
+	recvChan := pc.recvChan
+	defer close(recvChan)
 	defer pc.Close()
 
 	for {
@@ -119,7 +120,7 @@ func (pc *PacketConn) recvRoutine() {
 			break
 		}
 
-		pc.Recv <- packet
+		recvChan <- packet
 	}
 }
 
@@ -236,6 +237,10 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	}
 
 	return packet, nil
+}
+
+func (pc *PacketConn) Recv() <-chan *Packet {
+	return pc.recvChan
 }
 
 // Close the connection

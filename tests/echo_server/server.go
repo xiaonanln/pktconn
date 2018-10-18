@@ -53,7 +53,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		go func() {
 			pc := packetconn.NewPacketConn(conn)
 
-			for pkt := range pc.Recv {
+			for pkt := range pc.Recv() {
 				pc.Send(pkt)
 				pkt.Release()
 				atomic.AddUint64(&ts.handlePacketCount, 1)

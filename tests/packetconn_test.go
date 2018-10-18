@@ -71,7 +71,7 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
 		pc := packetconn.NewPacketConn(conn)
 
-		for pkt := range pc.Recv {
+		for pkt := range pc.Recv() {
 			pc.Send(pkt)
 			pkt.Release()
 			atomic.AddUint64(&ts.handlePacketCount, 1)
@@ -124,7 +124,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 			t.Errorf("payload should be %d, but is %d", PAYLOAD_LEN, packet.GetPayloadLen())
 		}
 		pconn.Send(packet)
-		if recvPacket, ok := <-pconn.Recv; ok {
+		if recvPacket, ok := <-pconn.Recv(); ok {
 			if packet.GetPayloadLen() != recvPacket.GetPayloadLen() {
 				t.Errorf("send packet len %d, but recv len %d", packet.GetPayloadLen(), recvPacket.GetPayloadLen())
 			}
@@ -168,13 +168,13 @@ restart:
 		noackCount += 1
 
 		for noackCount > noackCountLimit {
-			<-pc.Recv
+			<-pc.Recv()
 			noackCount -= 1
 		}
 	}
 
 	for noackCount > 0 {
-		<-pc.Recv
+		<-pc.Recv()
 		noackCount -= 1
 	}
 	pc.Close()

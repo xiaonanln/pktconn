@@ -3,18 +3,18 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
-    "math/rand"
 
 	packetconn "github.com/xiaonanln/go-packetconn"
 )
 
 const (
-	port            = 14572
-	noackCountLimit = 1000
-	perfClientCount = 2000
+	port               = 14572
+	noackCountLimit    = 1000
+	perfClientCount    = 2000
 	perfPayloadSizeMax = 2048
 )
 
@@ -70,13 +70,13 @@ restart:
 		noackCount += 1
 
 		for noackCount > noackCountLimit {
-			<-pc.Recv
+			<-pc.Recv()
 			noackCount -= 1
 		}
 	}
 
 	for noackCount > 0 {
-		<-pc.Recv
+		<-pc.Recv()
 		noackCount -= 1
 	}
 }

@@ -21,6 +21,6 @@ func main() {
 	packet.AppendBytes(payload)
 
 	pc.Send(packet)
-	recvPacket := <-pc.Recv
+	recvPacket := <-pc.Recv()
 	fmt.Printf("recv packet: %d\n", recvPacket.GetPayloadLen())
 }
