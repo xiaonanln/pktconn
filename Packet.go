@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	_MIN_PAYLOAD_CAP = 128
-	_CAP_GROW_SHIFT  = uint(2)
+	minPayloadCap       = 128
+	payloadCapGrowShift = uint(2)
 )
 
 var (
@@ -31,10 +31,10 @@ var (
 )
 
 func init() {
-	payloadCap := uint32(_MIN_PAYLOAD_CAP) << _CAP_GROW_SHIFT
+	payloadCap := uint32(minPayloadCap) << payloadCapGrowShift
 	for payloadCap < MaxPayloadLength {
 		predefinePayloadCapacities = append(predefinePayloadCapacities, payloadCap)
-		payloadCap <<= _CAP_GROW_SHIFT
+		payloadCap <<= payloadCapGrowShift
 	}
 	predefinePayloadCapacities = append(predefinePayloadCapacities, MaxPayloadLength)
 
@@ -63,7 +63,7 @@ type Packet struct {
 	readCursor   uint32
 	refcount     int64
 	bytes        []byte
-	initialBytes [prePayloadSize + _MIN_PAYLOAD_CAP]byte
+	initialBytes [prePayloadSize + minPayloadCap]byte
 }
 
 func allocPacket() *Packet {
@@ -102,7 +102,7 @@ func (p *Packet) AssureCapacity(need uint32) {
 	oldBytes := p.bytes
 	p.bytes = buffer
 
-	if oldPayloadCap > _MIN_PAYLOAD_CAP {
+	if oldPayloadCap > minPayloadCap {
 		// release old bytes
 		packetBufferPools[oldPayloadCap].Put(oldBytes)
 	}
@@ -157,7 +157,7 @@ func (p *Packet) Release() {
 
 	if refcount == 0 {
 		payloadCap := p.PayloadCap()
-		if payloadCap > _MIN_PAYLOAD_CAP {
+		if payloadCap > minPayloadCap {
 			buffer := p.bytes
 			p.bytes = p.initialBytes[:]
 			packetBufferPools[payloadCap].Put(buffer) // reclaim the buffer
