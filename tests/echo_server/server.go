@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"runtime"
 	"sync/atomic"
 	"time"
+
+	_ "net/http/pprof"
 
 	packetconn "github.com/xiaonanln/go-packetconn"
 )
@@ -63,7 +66,10 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 }
 
 func main() {
-	runtime.GOMAXPROCS(1)
+	runtime.GOMAXPROCS(3)
+	go func() {
+		log.Println(http.ListenAndServe("0.0.0.0:6060", nil))
+	}()
 	var server testPacketServer
 	server.serve(fmt.Sprintf("0.0.0.0:%d", port))
 }
