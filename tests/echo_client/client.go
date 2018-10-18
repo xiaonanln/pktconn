@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 	"time"
+    "math/rand"
 
 	packetconn "github.com/xiaonanln/go-packetconn"
 )
@@ -13,8 +14,8 @@ import (
 const (
 	port            = 14572
 	noackCountLimit = 1000
-	perfClientCount = 1000
-	perfPayloadSize = 1024
+	perfClientCount = 2000
+	perfPayloadSizeMax = 2048
 )
 
 func main() {
@@ -57,7 +58,7 @@ restart:
 
 	allConnected.Done()
 
-	payload := make([]byte, perfPayloadSize)
+	payload := make([]byte, rand.Intn(perfPayloadSizeMax))
 	packet := packetconn.NewPacket()
 	packet.AppendBytes(payload)
 
