@@ -12,10 +12,9 @@ import (
 )
 
 const (
-	_MAX_PACKET_SIZE    = 25 * 1024 * 1024 // _MAX_PACKET_SIZE is the max size limit of packets in packet connections
-	_SIZE_FIELD_SIZE    = 4                // _SIZE_FIELD_SIZE is the packet size field (uint32) size
-	_PREPAYLOAD_SIZE    = _SIZE_FIELD_SIZE
-	_MAX_PAYLOAD_LENGTH = _MAX_PACKET_SIZE - _PREPAYLOAD_SIZE
+	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
+	prePayloadSize    = payloadLengthSize
+	MaxPayloadLength  = 16 * 1024 * 1024
 )
 
 // PacketConn is a connection that send and receive data packets upon a network stream connection
@@ -153,7 +152,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	}
 
 	payloadSize := packetEndian.Uint32(payloadSizeBuffer[:])
-	if payloadSize > _MAX_PAYLOAD_LENGTH {
+	if payloadSize > MaxPayloadLength {
 		return nil, errPayloadTooLarge
 	}
 
@@ -161,7 +160,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	packet := NewPacket()
 	packet.Src = pc
 	packet.AssureCapacity(payloadSize)
-	err = ReadAll(pc.conn, packet.bytes[_PREPAYLOAD_SIZE:_PREPAYLOAD_SIZE+payloadSize])
+	err = ReadAll(pc.conn, packet.bytes[prePayloadSize:prePayloadSize+payloadSize])
 	if err != nil {
 		return nil, err
 	}
