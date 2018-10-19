@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -61,7 +62,7 @@ restart:
 		goto restart
 	}
 
-	pc := packetconn.NewPacketConn(conn)
+	pc := packetconn.NewPacketConn(context.TODO(), conn)
 	defer pc.Close()
 
 	allConnected.Done()

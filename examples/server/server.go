@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -23,7 +24,7 @@ func main() {
 		}
 
 		go func() {
-			pc := packetconn.NewPacketConn(conn)
+			pc := packetconn.NewPacketConn(context.TODO(), conn)
 			fmt.Printf("client connected: %s\n", pc.RemoteAddr())
 
 			for pkt := range pc.Recv() {

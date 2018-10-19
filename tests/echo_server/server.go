@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -56,7 +57,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		go func() {
 			cfg := packetconn.DefaultConfig()
 			cfg.FlushInterval = time.Millisecond * 100
-			pc := packetconn.NewPacketConnWithConfig(conn, cfg)
+			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
 			for pkt := range pc.Recv() {
 				pc.Send(pkt)

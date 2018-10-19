@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -13,7 +14,7 @@ func main() {
 		panic(err)
 	}
 
-	pc := packetconn.NewPacketConn(conn)
+	pc := packetconn.NewPacketConn(context.TODO(), conn)
 	defer pc.Close()
 
 	packet := packetconn.NewPacket()

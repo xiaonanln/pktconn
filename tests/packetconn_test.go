@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -69,7 +70,7 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 
 func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
-		pc := packetconn.NewPacketConn(conn)
+		pc := packetconn.NewPacketConn(context.TODO(), conn)
 
 		for pkt := range pc.Recv() {
 			pc.Send(pkt)
@@ -110,7 +111,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		cfg.WriteBufferSize = 0
 	}
 
-	pconn := packetconn.NewPacketConnWithConfig(conn, cfg)
+	pconn := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
@@ -151,7 +152,7 @@ restart:
 		goto restart
 	}
 
-	pc := packetconn.NewPacketConn(conn)
+	pc := packetconn.NewPacketConn(context.TODO(), conn)
 
 	allConnected.Done()
 

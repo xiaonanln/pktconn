@@ -1,6 +1,7 @@
 package packetconn
 
 import (
+	"context"
 	"fmt"
 	"hash/crc32"
 	"log"
@@ -49,14 +50,16 @@ type PacketConn struct {
 	pendingPacketsLock sync.Mutex
 	recvChan           chan *Packet
 	Config             Config
+	ctx                context.Context
+	cancel             context.CancelFunc
 }
 
 // NewPacketConn creates a packet connection based on network connection
-func NewPacketConn(conn net.Conn) *PacketConn {
-	return NewPacketConnWithConfig(conn, DefaultConfig())
+func NewPacketConn(ctx context.Context, conn net.Conn) *PacketConn {
+	return NewPacketConnWithConfig(ctx, conn, DefaultConfig())
 }
 
-func NewPacketConnWithConfig(conn net.Conn, cfg *Config) *PacketConn {
+func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *PacketConn {
 	if conn == nil {
 		panic(fmt.Errorf("conn is nil"))
 	}
@@ -71,11 +74,15 @@ func NewPacketConnWithConfig(conn net.Conn, cfg *Config) *PacketConn {
 		conn = newBufferedConn(conn, cfg.ReadBufferSize, cfg.WriteBufferSize)
 	}
 
+	pcCtx, pcCancel := context.WithCancel(ctx)
 	pc := &PacketConn{
 		conn:     conn,
 		recvChan: make(chan *Packet, cfg.RecvChanSize),
 		Config:   *cfg,
+		ctx:      pcCtx,
+		cancel:   pcCancel,
 	}
+
 	go pc.recvRoutine()
 	go pc.flushRoutine(cfg.FlushInterval)
 	return pc
@@ -102,23 +109,33 @@ func validateConfig(cfg *Config) {
 var startupTime = time.Now()
 
 func (pc *PacketConn) flushRoutine(interval time.Duration) {
-	for {
-		err := pc.flush()
-		if time.Now().Sub(startupTime) > time.Second*30 {
-			log.Printf("flush error: %v", err)
-		}
-		if err != nil {
-			break
-		}
+	defer pc.Close()
 
-		time.Sleep(interval)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	ctxDone := pc.ctx.Done()
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			err := pc.flush()
+			if time.Now().Sub(startupTime) > time.Second*30 {
+				log.Printf("flush error: %v", err)
+			}
+			if err != nil {
+				break loop
+			}
+		case <-ctxDone:
+			break loop
+		}
 	}
 }
 
 func (pc *PacketConn) recvRoutine() {
+	defer pc.Close()
 	recvChan := pc.recvChan
 	defer close(recvChan)
-	defer pc.Close()
 
 	for {
 		packet, err := pc.recv()
@@ -255,6 +272,7 @@ func (pc *PacketConn) Recv() <-chan *Packet {
 
 // Close the connection
 func (pc *PacketConn) Close() error {
+	pc.cancel()
 	return pc.conn.Close()
 }
 
@@ -269,5 +287,5 @@ func (pc *PacketConn) LocalAddr() net.Addr {
 }
 
 func (pc *PacketConn) String() string {
-	return fmt.Sprintf("[%s >>> %s]", pc.LocalAddr(), pc.RemoteAddr())
+	return fmt.Sprintf("PacketConn<%s-%s>", pc.LocalAddr(), pc.RemoteAddr())
 }
