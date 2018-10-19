@@ -99,10 +99,14 @@ func validateConfig(cfg *Config) {
 	}
 }
 
+var startupTime = time.Now()
+
 func (pc *PacketConn) flushRoutine(interval time.Duration) {
 	for {
 		err := pc.flush()
-		log.Printf("flush error: %v", err)
+		if time.Now().Sub(startupTime) > time.Second*30 {
+			log.Printf("flush error: %v", err)
+		}
 		if err != nil {
 			break
 		}
@@ -118,7 +122,10 @@ func (pc *PacketConn) recvRoutine() {
 
 	for {
 		packet, err := pc.recv()
-		log.Printf("recv error: %v", err)
+		if time.Now().Sub(startupTime) > time.Second*30 {
+			log.Printf("recv error: %v", err)
+		}
+
 		if err != nil {
 			break
 		}
