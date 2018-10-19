@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"hash/crc32"
-	"log"
 	"net"
 
 	"sync"
@@ -106,8 +105,6 @@ func validateConfig(cfg *Config) {
 	}
 }
 
-var startupTime = time.Now()
-
 func (pc *PacketConn) flushRoutine(interval time.Duration) {
 	defer pc.Close()
 
@@ -120,9 +117,6 @@ loop:
 		select {
 		case <-ticker.C:
 			err := pc.flush()
-			if time.Now().Sub(startupTime) > time.Second*30 {
-				log.Printf("flush error: %v", err)
-			}
 			if err != nil {
 				break loop
 			}
@@ -139,10 +133,6 @@ func (pc *PacketConn) recvRoutine() {
 
 	for {
 		packet, err := pc.recv()
-		if time.Now().Sub(startupTime) > time.Second*30 {
-			log.Printf("recv error: %v", err)
-		}
-
 		if err != nil {
 			break
 		}
