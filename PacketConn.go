@@ -3,7 +3,7 @@ package packetconn
 import (
 	"context"
 	"fmt"
-	"hash/crc32"
+	"hash/adler32"
 	"net"
 
 	"sync"
@@ -204,7 +204,7 @@ func (pc *PacketConn) writePacket(packet *Packet) error {
 
 	if pc.Config.CrcChecksum {
 		var crc32Buffer [4]byte
-		payloadCrc := crc32.ChecksumIEEE(pdata)
+		payloadCrc := adler32.Checksum(pdata)
 		packetEndian.PutUint32(crc32Buffer[:], payloadCrc)
 		return WriteAll(pc.conn, crc32Buffer[:])
 	} else {
@@ -247,7 +247,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 			return nil, err
 		}
 
-		payloadCrc := crc32.ChecksumIEEE(packet.data())
+		payloadCrc := adler32.Checksum(packet.data())
 		if payloadCrc != packetEndian.Uint32(uint32Buffer[:]) {
 			return nil, errChecksumError
 		}
