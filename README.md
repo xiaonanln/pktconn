@@ -7,10 +7,11 @@
 1. 让接口尽可能简单！
 
 ## 性能测试
-[tests/echo_server](https://github.com/xiaonanln/go-packetconn/blob/master/examples/server/server.go)目前可以做到每秒接收并发回**40万**个0~2048字节的数据包
+[tests/echo_server](https://github.com/xiaonanln/go-packetconn/blob/master/examples/server/server.go)目前可以做到每秒接收并发回**53万**个0~2048字节的数据包
 
 * 最多使用2个CPU：runtime.GOMAXPROCS(2)
 * CPU信息：Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz 32核
+* 开启CRC校验后性能降低到每秒收发40万个数据包
 
 ## 示例
 
