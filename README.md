@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -22,7 +23,7 @@ import (
 )
 
 func main() {
-	ln, err := net.Listen("tcp", "localhost:14572")
+	ln, err := net.Listen("tcp", "0.0.0.0:14572")
 
 	if err != nil {
 		panic(err)
@@ -37,7 +38,7 @@ func main() {
 		}
 
 		go func() {
-			pc := packetconn.NewPacketConn(conn)
+			pc := packetconn.NewPacketConn(context.TODO(), conn)
 			fmt.Printf("client connected: %s\n", pc.RemoteAddr())
 
 			for pkt := range pc.Recv() {
@@ -50,6 +51,7 @@ func main() {
 		}()
 	}
 }
+
 ```
 
 ### 客户端示例
@@ -57,6 +59,7 @@ func main() {
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -69,7 +72,7 @@ func main() {
 		panic(err)
 	}
 
-	pc := packetconn.NewPacketConn(conn)
+	pc := packetconn.NewPacketConn(context.TODO(), conn)
 	defer pc.Close()
 
 	packet := packetconn.NewPacket()
