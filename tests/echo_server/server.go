@@ -66,6 +66,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		go func() {
 			cfg := packetconn.DefaultConfig()
 			cfg.FlushInterval = time.Millisecond * 100
+			cfg.CrcChecksum = false
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
 			for pkt := range pc.Recv() {

@@ -62,7 +62,9 @@ restart:
 		goto restart
 	}
 
-	pc := packetconn.NewPacketConn(context.TODO(), conn)
+	cfg := packetconn.DefaultConfig()
+	cfg.CrcChecksum = false
+	pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 	defer pc.Close()
 
 	allConnected.Done()

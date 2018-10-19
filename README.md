@@ -5,8 +5,12 @@
 1. 每个包都是一段任意长度的字节数组
 1. 提供Packet类用于灵活地封包和拆包
 1. 让接口尽可能简单！
-1. 性能测试：每秒接收并发回46万个1024字节的数据包
-    * Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz 32核
+
+## 性能测试
+[tests/echo_server](https://github.com/xiaonanln/go-packetconn/blob/master/examples/server/server.go)目前可以做到每秒接收并发回**40万**个0~2048字节的数据包
+
+* 最多使用2个CPU：runtime.GOMAXPROCS(2)
+* CPU信息：Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz 32核
 
 ## 示例
 
