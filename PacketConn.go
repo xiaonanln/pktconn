@@ -102,8 +102,8 @@ func validateConfig(cfg *Config) {
 func (pc *PacketConn) flushRoutine(interval time.Duration) {
 	for {
 		err := pc.flush()
+		log.Printf("flush error: %v", err)
 		if err != nil {
-			log.Printf("flush error: %v", err)
 			break
 		}
 
@@ -118,6 +118,7 @@ func (pc *PacketConn) recvRoutine() {
 
 	for {
 		packet, err := pc.recv()
+		log.Printf("recv error: %v", err)
 		if err != nil {
 			break
 		}
