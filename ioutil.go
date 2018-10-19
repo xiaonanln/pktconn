@@ -63,7 +63,14 @@ type flushable interface {
 
 func tryFlush(conn net.Conn) error {
 	if f, ok := conn.(flushable); ok {
-		return f.Flush()
+		for {
+			err := f.Flush()
+			if err == nil || !IsTemporary(err) {
+				return err
+			} else {
+				runtime.Gosched()
+			}
+		}
 	} else {
 		return nil
 	}

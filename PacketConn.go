@@ -3,6 +3,7 @@ package packetconn
 import (
 	"fmt"
 	"hash/crc32"
+	"log"
 	"net"
 
 	"sync"
@@ -102,6 +103,7 @@ func (pc *PacketConn) flushRoutine(interval time.Duration) {
 	for {
 		err := pc.flush()
 		if err != nil {
+			log.Printf("flush error: %v", err)
 			break
 		}
 
