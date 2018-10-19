@@ -20,7 +20,9 @@ const (
 )
 
 type testPacketServer struct {
-	handlePacketCount uint64
+	handlePacketCount      uint64
+	totalHandlePacketCount uint64
+	startupTime            time.Time
 }
 
 // ServeTCP serves on specified address as TCP server
@@ -34,10 +36,17 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 
 	defer ln.Close()
 
+	ts.startupTime = time.Now()
 	go func() {
 		for {
 			count := atomic.SwapUint64(&ts.handlePacketCount, 0)
-			log.Printf("handling %d packets per second", count)
+			totalCount := atomic.AddUint64(&ts.totalHandlePacketCount, count)
+			elapsedTime := (time.Now().Sub(ts.startupTime)) / time.Second
+			if elapsedTime == 0 {
+				elapsedTime = 1
+			}
+
+			log.Printf("CUR %d, AVG %d/s", count, totalCount/uint64(elapsedTime))
 			time.Sleep(time.Second)
 		}
 	}()
