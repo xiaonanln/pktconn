@@ -54,7 +54,9 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 
 		log.Printf("%s connected", conn.RemoteAddr())
 		go func() {
-			pc := packetconn.NewPacketConn(conn)
+			cfg := packetconn.DefaultConfig()
+			cfg.FlushInterval = time.Millisecond * 100
+			pc := packetconn.NewPacketConnWithConfig(conn, cfg)
 
 			for pkt := range pc.Recv() {
 				pc.Send(pkt)
