@@ -11,7 +11,7 @@
  * 最多使用2个CPU：runtime.GOMAXPROCS(2)
  * CPU信息：Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz 32核
 
-从profile结果来看，**85%** 开销都在收发包的系统调用上，这部分是无法优化的。**几乎没有任何内存分配和垃圾回收的开销**，这也是实现高性能收发数据包的关键。
+从[Profile结果](https://raw.githubusercontent.com/xiaonanln/go-packetconn/master/tests/profile.pdf)来看，**85%** 开销都在收发包的系统调用上，这部分是无法优化的。**几乎没有任何内存分配和垃圾回收的开销**，这也是实现高性能收发数据包的关键。
 
 ```bash
 Showing nodes accounting for 46.79s, 79.86% of 58.59s total
