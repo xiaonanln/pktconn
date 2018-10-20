@@ -163,9 +163,13 @@ func (p *Packet) extendPayload(size int) []byte {
 	return p.payloadSlice(payloadLen, newPayloadLen)
 }
 
-// AddRefCount adds reference count of packet
-func (p *Packet) AddRefCount(add int64) {
+// addRefCount adds reference count of packet
+func (p *Packet) addRefCount(add int64) {
 	atomic.AddInt64(&p.refcount, add)
+}
+
+func (p *Packet) Retain() {
+	p.addRefCount(1)
 }
 
 // Release releases the packet to packet pool

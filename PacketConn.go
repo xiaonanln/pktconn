@@ -147,7 +147,7 @@ func (pc *PacketConn) Send(packet *Packet) error {
 		panic(fmt.Errorf("sending packet with refcount=%d", packet.refcount))
 	}
 
-	packet.AddRefCount(1)
+	packet.addRefCount(1)
 	pc.pendingPacketsLock.Lock()
 	pc.pendingPackets = append(pc.pendingPackets, packet)
 	pc.pendingPacketsLock.Unlock()
