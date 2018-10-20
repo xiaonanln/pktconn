@@ -202,8 +202,8 @@ func (p *Packet) ReadPos() uint32 {
 	return p.readCursor
 }
 
-// WriteByte appends one byte to the end of payload
-func (p *Packet) WriteByte(b byte) {
+// WriteOneByte appends one byte to the end of payload
+func (p *Packet) WriteOneByte(b byte) {
 	pl := p.extendPayload(1)
 	pl[0] = b
 }
@@ -219,9 +219,9 @@ func (p *Packet) ReadOneByte() (v byte) {
 // WriteBool appends one byte 1/0 to the end of payload
 func (p *Packet) WriteBool(b bool) {
 	if b {
-		p.WriteByte(1)
+		p.WriteOneByte(1)
 	} else {
-		p.WriteByte(0)
+		p.WriteOneByte(0)
 	}
 }
 

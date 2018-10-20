@@ -119,7 +119,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 
 		packet := packetconn.NewPacket()
 		for j := uint32(0); j < PAYLOAD_LEN; j++ {
-			packet.WriteByte(byte(rand.Intn(256)))
+			packet.WriteOneByte(byte(rand.Intn(256)))
 		}
 		if packet.PayloadLen() != PAYLOAD_LEN {
 			t.Errorf("payload should be %d, but is %d", PAYLOAD_LEN, packet.PayloadLen())
