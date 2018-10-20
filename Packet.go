@@ -126,14 +126,22 @@ func (p *Packet) PayloadCap() uint32 {
 	return uint32(len(p.bytes) - prePayloadSize)
 }
 
-func (p *Packet) extendPayload(size uint32) []byte {
+func (p *Packet) extendPayload(size int) []byte {
+	if size > MaxPayloadLength {
+		return nil
+	}
+
 	payloadLen := p.PayloadLen()
-	newPayloadLen := payloadLen + size
+	newPayloadLen := payloadLen + uint32(size)
 	oldCap := p.PayloadCap()
 
 	if newPayloadLen <= oldCap { // most case
 		p.SetPayloadLen(newPayloadLen)
 		return p.payloadSlice(payloadLen, newPayloadLen)
+	}
+
+	if newPayloadLen > MaxPayloadLength {
+		return nil
 	}
 
 	// try to find the proper capacity for the size bytes
@@ -291,27 +299,46 @@ func (p *Packet) Write(b []byte) (n int, err error) {
 }
 
 // WriteBytes appends slice of bytes to the end of payload
-func (p *Packet) WriteBytes(v []byte) {
-	bytesLen := uint32(len(v))
-	pl := p.extendPayload(bytesLen)
-	copy(pl, v)
+func (p *Packet) WriteBytes(b []byte) int {
+	bl := len(b)
+	pl := p.extendPayload(bl)
+	if pl != nil {
+		copy(pl, b)
+		return bl
+	} else {
+		return 0
+	}
 }
 
 // WriteVarStr appends a varsize string to the end of payload
-func (p *Packet) WriteVarStr(s string) {
-	p.WriteVarBytesH([]byte(s))
+func (p *Packet) WriteVarStr(s string) int {
+	return p.WriteVarBytesH([]byte(s))
 }
 
 // WriteVarBytesI appends varsize bytes to the end of payload
-func (p *Packet) WriteVarBytesI(v []byte) {
-	p.WriteUint32(uint32(len(v)))
-	p.WriteBytes(v)
+func (p *Packet) WriteVarBytesI(b []byte) int {
+	bl := len(b)
+	if bl > MaxPayloadLength {
+		return 0
+	}
+
+	pl := p.extendPayload(bl + 4)
+	packetEndian.PutUint32(pl[:4], uint32(bl))
+	copy(pl[4:], b)
+	return bl + 4
 }
 
 // WriteVarBytesH appends varsize bytes to the end of payload
-func (p *Packet) WriteVarBytesH(v []byte) {
-	p.WriteUint16(uint16(len(v)))
-	p.WriteBytes(v)
+func (p *Packet) WriteVarBytesH(b []byte) int {
+	bl := len(b)
+	if bl > MaxPayloadLength {
+		return 0
+	}
+
+	pl := p.extendPayload(bl + 2)
+	packetEndian.PutUint16(pl[:2], uint16(bl))
+	copy(pl[2:], b)
+	return bl + 2
 }
 
 // ReadUint16 reads one uint16 from the beginning of unread payload

@@ -232,7 +232,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	// allocate a packet to receive payload
 	packet := NewPacket()
 	packet.Src = pc
-	payload := packet.extendPayload(payloadSize)
+	payload := packet.extendPayload(int(payloadSize))
 	err = ReadAll(pc.conn, payload)
 	if err != nil {
 		return nil, err
