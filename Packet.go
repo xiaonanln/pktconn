@@ -179,8 +179,8 @@ func (p *Packet) ClearPayload() {
 	p.setPayloadLen(0)
 }
 
-// AppendByte appends one byte to the end of payload
-func (p *Packet) AppendByte(b byte) {
+// WriteByte appends one byte to the end of payload
+func (p *Packet) WriteByte(b byte) {
 	p.AssureCapacity(1)
 	p.bytes[prePayloadSize+p.GetPayloadLen()] = b
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 1
@@ -194,12 +194,12 @@ func (p *Packet) ReadOneByte() (v byte) {
 	return
 }
 
-// AppendBool appends one byte 1/0 to the end of payload
-func (p *Packet) AppendBool(b bool) {
+// WriteBool appends one byte 1/0 to the end of payload
+func (p *Packet) WriteBool(b bool) {
 	if b {
-		p.AppendByte(1)
+		p.WriteByte(1)
 	} else {
-		p.AppendByte(0)
+		p.WriteByte(0)
 	}
 }
 
@@ -208,16 +208,16 @@ func (p *Packet) ReadBool() (v bool) {
 	return p.ReadOneByte() != 0
 }
 
-// AppendUint16 appends one uint16 to the end of payload
-func (p *Packet) AppendUint16(v uint16) {
+// WriteUint16 appends one uint16 to the end of payload
+func (p *Packet) WriteUint16(v uint16) {
 	p.AssureCapacity(2)
 	payloadEnd := prePayloadSize + p.GetPayloadLen()
 	packetEndian.PutUint16(p.bytes[payloadEnd:payloadEnd+2], v)
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 2
 }
 
-// AppendUint32 appends one uint32 to the end of payload
-func (p *Packet) AppendUint32(v uint32) {
+// WriteUint32 appends one uint32 to the end of payload
+func (p *Packet) WriteUint32(v uint32) {
 	p.AssureCapacity(4)
 	payloadEnd := prePayloadSize + p.GetPayloadLen()
 	packetEndian.PutUint32(p.bytes[payloadEnd:payloadEnd+4], v)
@@ -232,17 +232,17 @@ func (p *Packet) PopUint32() (v uint32) {
 	return
 }
 
-// AppendUint64 appends one uint64 to the end of payload
-func (p *Packet) AppendUint64(v uint64) {
+// WriteUint64 appends one uint64 to the end of payload
+func (p *Packet) WriteUint64(v uint64) {
 	p.AssureCapacity(8)
 	payloadEnd := prePayloadSize + p.GetPayloadLen()
 	packetEndian.PutUint64(p.bytes[payloadEnd:payloadEnd+8], v)
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 8
 }
 
-// AppendFloat32 appends one float32 to the end of payload
-func (p *Packet) AppendFloat32(f float32) {
-	p.AppendUint32(math.Float32bits(f))
+// WriteFloat32 appends one float32 to the end of payload
+func (p *Packet) WriteFloat32(f float32) {
+	p.WriteUint32(math.Float32bits(f))
 }
 
 // ReadFloat32 reads one float32 from the beginning of unread payload
@@ -250,9 +250,9 @@ func (p *Packet) ReadFloat32() float32 {
 	return math.Float32frombits(p.ReadUint32())
 }
 
-// AppendFloat64 appends one float64 to the end of payload
-func (p *Packet) AppendFloat64(f float64) {
-	p.AppendUint64(math.Float64bits(f))
+// WriteFloat64 appends one float64 to the end of payload
+func (p *Packet) WriteFloat64(f float64) {
+	p.WriteUint64(math.Float64bits(f))
 }
 
 // ReadFloat64 reads one float64 from the beginning of unread payload
@@ -260,8 +260,8 @@ func (p *Packet) ReadFloat64() float64 {
 	return math.Float64frombits(p.ReadUint64())
 }
 
-// AppendBytes appends slice of bytes to the end of payload
-func (p *Packet) AppendBytes(v []byte) {
+// WriteBytes appends slice of bytes to the end of payload
+func (p *Packet) WriteBytes(v []byte) {
 	bytesLen := uint32(len(v))
 	p.AssureCapacity(bytesLen)
 	payloadEnd := prePayloadSize + p.GetPayloadLen()
@@ -269,21 +269,21 @@ func (p *Packet) AppendBytes(v []byte) {
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += bytesLen
 }
 
-// AppendVarStr appends a varsize string to the end of payload
-func (p *Packet) AppendVarStr(s string) {
-	p.AppendVarBytesH([]byte(s))
+// WriteVarStr appends a varsize string to the end of payload
+func (p *Packet) WriteVarStr(s string) {
+	p.WriteVarBytesH([]byte(s))
 }
 
-// AppendVarBytesI appends varsize bytes to the end of payload
-func (p *Packet) AppendVarBytesI(v []byte) {
-	p.AppendUint32(uint32(len(v)))
-	p.AppendBytes(v)
+// WriteVarBytesI appends varsize bytes to the end of payload
+func (p *Packet) WriteVarBytesI(v []byte) {
+	p.WriteUint32(uint32(len(v)))
+	p.WriteBytes(v)
 }
 
-// AppendVarBytesH appends varsize bytes to the end of payload
-func (p *Packet) AppendVarBytesH(v []byte) {
-	p.AppendUint16(uint16(len(v)))
-	p.AppendBytes(v)
+// WriteVarBytesH appends varsize bytes to the end of payload
+func (p *Packet) WriteVarBytesH(v []byte) {
+	p.WriteUint16(uint16(len(v)))
+	p.WriteBytes(v)
 }
 
 // ReadUint16 reads one uint16 from the beginning of unread payload
@@ -348,11 +348,11 @@ func (p *Packet) ReadVarBytesH() []byte {
 	return p.ReadBytes(uint32(blen))
 }
 
-func (p *Packet) AppendMapStringString(m map[string]string) {
-	p.AppendUint32(uint32(len(m)))
+func (p *Packet) WriteMapStringString(m map[string]string) {
+	p.WriteUint32(uint32(len(m)))
 	for k, v := range m {
-		p.AppendVarStr(k)
-		p.AppendVarStr(v)
+		p.WriteVarStr(k)
+		p.WriteVarStr(v)
 	}
 }
 
@@ -367,11 +367,11 @@ func (p *Packet) ReadMapStringString() map[string]string {
 	return m
 }
 
-// AppendStringList appends a list of strings to the end of payload
-func (p *Packet) AppendStringList(list []string) {
-	p.AppendUint16(uint16(len(list)))
+// WriteStringList appends a list of strings to the end of payload
+func (p *Packet) WriteStringList(list []string) {
+	p.WriteUint16(uint16(len(list)))
 	for _, s := range list {
-		p.AppendVarStr(s)
+		p.WriteVarStr(s)
 	}
 }
 
