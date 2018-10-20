@@ -71,7 +71,7 @@ restart:
 
 	payload := make([]byte, perfPayloadSizeMin+rand.Intn(perfPayloadSizeMax-perfPayloadSizeMin+1))
 	packet := packetconn.NewPacket()
-	packet.AppendBytes(payload)
+	packet.WriteBytes(payload)
 
 	<-startSendRecv
 	noackCount := 0

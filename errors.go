@@ -1,10 +1,15 @@
 package packetconn
 
 import (
+	"io"
+
 	"github.com/pkg/errors"
 )
 
 var (
+	ErrPayloadTooLarge = io.ErrShortWrite
+	ErrPayloadTooSmall = io.ErrUnexpectedEOF
+
 	errPayloadTooLarge = errors.Errorf("payload too large")
 	errChecksumError   = errors.Errorf("checksum error")
 )

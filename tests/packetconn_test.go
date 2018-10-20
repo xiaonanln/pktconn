@@ -6,26 +6,17 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"os"
 	"runtime"
-	"runtime/pprof"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	packetconn "github.com/xiaonanln/go-packetconn"
+	"github.com/xiaonanln/go-packetconn"
 )
 
 const (
 	port       = 14572
 	bufferSize = 8192 * 2
-	//recvChanSize    = 1000
-	//flushInterval   = time.Millisecond * 5
-	noackCountLimit = 1000
-	perfClientCount = 1000
-	perfPayloadSize = 1024
-	perfDuration    = time.Second * 5
 )
 
 type testPacketServer struct {
@@ -119,7 +110,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 
 		packet := packetconn.NewPacket()
 		for j := uint32(0); j < PAYLOAD_LEN; j++ {
-			packet.AppendByte(byte(rand.Intn(256)))
+			packet.WriteOneByte(byte(rand.Intn(256)))
 		}
 		if packet.GetPayloadLen() != PAYLOAD_LEN {
 			t.Errorf("payload should be %d, but is %d", PAYLOAD_LEN, packet.GetPayloadLen())
@@ -138,81 +129,4 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 			t.Fatalf("can not recv packet")
 		}
 	}
-}
-
-type testPacketClient struct {
-}
-
-func (c *testPacketClient) routine(t *testing.T, done, allConnected *sync.WaitGroup, startSendRecv chan int) {
-restart:
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", port))
-	if err != nil {
-		t.Errorf("connect error: %s", err)
-		time.Sleep(time.Second)
-		goto restart
-	}
-
-	pc := packetconn.NewPacketConn(context.TODO(), conn)
-
-	allConnected.Done()
-
-	payload := make([]byte, perfPayloadSize)
-	packet := packetconn.NewPacket()
-	packet.AppendBytes(payload)
-
-	<-startSendRecv
-	stopTime := time.Now().Add(perfDuration)
-	noackCount := 0
-
-	for time.Now().Before(stopTime) {
-		pc.Send(packet)
-		noackCount += 1
-
-		for noackCount > noackCountLimit {
-			<-pc.Recv()
-			noackCount -= 1
-		}
-	}
-
-	for noackCount > 0 {
-		<-pc.Recv()
-		noackCount -= 1
-	}
-	pc.Close()
-	done.Done()
-}
-
-func TestPacketConnPerf(t *testing.T) {
-	w, err := os.OpenFile("test.pprof", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer w.Close()
-	pprof.StartCPUProfile(w)
-	defer pprof.StopCPUProfile()
-	var done sync.WaitGroup
-	done.Add(perfClientCount)
-	var allConnected sync.WaitGroup
-	allConnected.Add(perfClientCount)
-	startSendRecv := make(chan int, perfClientCount)
-
-	for i := 0; i < perfClientCount; i++ {
-		client := &testPacketClient{}
-		go client.routine(t, &done, &allConnected, startSendRecv)
-	}
-	t.Log("wait for all clients to connected")
-	allConnected.Wait()
-	t.Log("start send/recv ...")
-	for i := 0; i < perfClientCount; i++ {
-		startSendRecv <- 1
-	}
-
-	done.Wait()
-
-	w, err = os.OpenFile("heap.pprof", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer w.Close()
-	pprof.WriteHeapProfile(w)
 }
