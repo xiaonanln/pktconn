@@ -23,5 +23,5 @@ func main() {
 
 	pc.Send(packet)
 	recvPacket := <-pc.Recv()
-	fmt.Printf("recv packet: %d\n", recvPacket.PayloadLen())
+	fmt.Printf("recv packet: %d\n", recvPacket.GetPayloadLen())
 }

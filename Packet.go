@@ -3,7 +3,6 @@ package packetconn
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 	"sync"
 
@@ -71,8 +70,8 @@ func allocPacket() *Packet {
 	pkt := packetPool.Get().(*Packet)
 	pkt.refcount = 1
 
-	if pkt.PayloadLen() != 0 {
-		panic(fmt.Errorf("allocPacket: payload should be 0, but is %d", pkt.PayloadLen()))
+	if pkt.GetPayloadLen() != 0 {
+		panic(fmt.Errorf("allocPacket: payload should be 0, but is %d", pkt.GetPayloadLen()))
 	}
 
 	return pkt
@@ -87,8 +86,8 @@ func (p *Packet) payloadSlice(i, j uint32) []byte {
 	return p.bytes[i+prePayloadSize : j+prePayloadSize]
 }
 
-// PayloadLen returns the payload length
-func (p *Packet) PayloadLen() uint32 {
+// GetPayloadLen returns the payload length
+func (p *Packet) GetPayloadLen() uint32 {
 	packetEndian.Uint32(p.bytes[0:4])
 	return *(*uint32)(unsafe.Pointer(&p.bytes[0]))
 }
@@ -100,25 +99,25 @@ func (p *Packet) SetPayloadLen(plen uint32) {
 
 // Payload returns the total payload of packet
 func (p *Packet) Payload() []byte {
-	return p.bytes[prePayloadSize : prePayloadSize+p.PayloadLen()]
+	return p.bytes[prePayloadSize : prePayloadSize+p.GetPayloadLen()]
 }
 
 // UnreadPayload returns the unread payload
 func (p *Packet) UnreadPayload() []byte {
 	pos := p.readCursor + prePayloadSize
-	payloadEnd := prePayloadSize + p.PayloadLen()
+	payloadEnd := prePayloadSize + p.GetPayloadLen()
 	return p.bytes[pos:payloadEnd]
 }
 
 // HasUnreadPayload returns if all payload is read
 func (p *Packet) HasUnreadPayload() bool {
-	pos := p.readCursor + prePayloadSize
-	plen := p.PayloadLen()
+	pos := p.readCursor
+	plen := p.GetPayloadLen()
 	return pos < plen
 }
 
 func (p *Packet) data() []byte {
-	return p.bytes[0 : prePayloadSize+p.PayloadLen()]
+	return p.bytes[0 : prePayloadSize+p.GetPayloadLen()]
 }
 
 // PayloadCap returns the current payload capacity
@@ -128,10 +127,10 @@ func (p *Packet) PayloadCap() uint32 {
 
 func (p *Packet) extendPayload(size int) []byte {
 	if size > MaxPayloadLength {
-		return nil
+		panic(ErrPayloadTooLarge)
 	}
 
-	payloadLen := p.PayloadLen()
+	payloadLen := p.GetPayloadLen()
 	newPayloadLen := payloadLen + uint32(size)
 	oldCap := p.PayloadCap()
 
@@ -141,7 +140,7 @@ func (p *Packet) extendPayload(size int) []byte {
 	}
 
 	if newPayloadLen > MaxPayloadLength {
-		return nil
+		panic(ErrPayloadTooLarge)
 	}
 
 	// try to find the proper capacity for the size bytes
@@ -198,7 +197,7 @@ func (p *Packet) ClearPayload() {
 }
 
 func (p *Packet) SetReadPos(pos uint32) {
-	plen := p.PayloadLen()
+	plen := p.GetPayloadLen()
 	if pos > plen {
 		pos = plen
 	}
@@ -206,7 +205,7 @@ func (p *Packet) SetReadPos(pos uint32) {
 	p.readCursor = pos
 }
 
-func (p *Packet) ReadPos() uint32 {
+func (p *Packet) GetReadPos() uint32 {
 	return p.readCursor
 }
 
@@ -216,14 +215,6 @@ func (p *Packet) WriteOneByte(b byte) {
 	pl[0] = b
 }
 
-// ReadOneByte reads one byte from the beginning
-func (p *Packet) ReadOneByte() (v byte) {
-	pos := p.readCursor + prePayloadSize
-	v = p.bytes[pos]
-	p.readCursor += 1
-	return
-}
-
 // WriteBool appends one byte 1/0 to the end of payload
 func (p *Packet) WriteBool(b bool) {
 	if b {
@@ -231,11 +222,6 @@ func (p *Packet) WriteBool(b bool) {
 	} else {
 		p.WriteOneByte(0)
 	}
-}
-
-// ReadBool reads one byte 1/0 from the beginning of unread payload
-func (p *Packet) ReadBool() (v bool) {
-	return p.ReadOneByte() != 0
 }
 
 // WriteUint16 appends one uint16 to the end of payload
@@ -250,19 +236,10 @@ func (p *Packet) WriteUint32(v uint32) {
 	packetEndian.PutUint32(pl, v)
 }
 
-// PopUint32 pops one uint32 from the end of payload
-func (p *Packet) PopUint32() (v uint32) {
-	payloadEnd := prePayloadSize + p.PayloadLen()
-	v = packetEndian.Uint32(p.bytes[payloadEnd-4 : payloadEnd])
-	*(*uint32)(unsafe.Pointer(&p.bytes[0])) -= 4
-	return
-}
-
 // WriteUint64 appends one uint64 to the end of payload
 func (p *Packet) WriteUint64(v uint64) {
 	pl := p.extendPayload(8)
 	packetEndian.PutUint64(pl, v)
-	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 8
 }
 
 // WriteFloat32 appends one float32 to the end of payload
@@ -285,84 +262,62 @@ func (p *Packet) ReadFloat64() float64 {
 	return math.Float64frombits(p.ReadUint64())
 }
 
-// Write write bytes to the packet payload. If the payload size reaches limit, Write returns 0, nil
-// Implements io.Writer interface
-func (p *Packet) Write(b []byte) (n int, err error) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			n, err = 0, io.EOF
-		}
-	}()
-	p.WriteBytes(b)
-	return len(b), nil
-}
-
 // WriteBytes appends slice of bytes to the end of payload
-func (p *Packet) WriteBytes(b []byte) int {
-	bl := len(b)
-	pl := p.extendPayload(bl)
-	if pl != nil {
-		copy(pl, b)
-		return bl
-	} else {
-		return 0
-	}
-}
-
-// WriteVarStr appends a varsize string to the end of payload
-func (p *Packet) WriteVarStr(s string) int {
-	return p.WriteVarBytesH([]byte(s))
+func (p *Packet) WriteBytes(b []byte) {
+	pl := p.extendPayload(len(b))
+	copy(pl, b)
 }
 
 // WriteVarBytesI appends varsize bytes to the end of payload
-func (p *Packet) WriteVarBytesI(b []byte) int {
-	bl := len(b)
-	if bl > MaxPayloadLength {
-		return 0
-	}
-
-	pl := p.extendPayload(bl + 4)
-	packetEndian.PutUint32(pl[:4], uint32(bl))
-	copy(pl[4:], b)
-	return bl + 4
+func (p *Packet) WriteVarBytesI(b []byte) {
+	p.WriteUint32(uint32(len(b)))
+	p.WriteBytes(b)
 }
 
 // WriteVarBytesH appends varsize bytes to the end of payload
-func (p *Packet) WriteVarBytesH(b []byte) int {
-	bl := len(b)
-	if bl > MaxPayloadLength {
-		return 0
+func (p *Packet) WriteVarBytesH(b []byte) {
+	if len(b) > 0xFFFF {
+		panic(ErrPayloadTooLarge)
 	}
 
-	pl := p.extendPayload(bl + 2)
-	packetEndian.PutUint16(pl[:2], uint16(bl))
-	copy(pl[2:], b)
-	return bl + 2
+	p.WriteUint16(uint16(len(b)))
+	p.WriteBytes(b)
+}
+
+// ReadOneByte reads one byte from the beginning
+func (p *Packet) ReadOneByte() (v byte) {
+	pos := p.readCursor + prePayloadSize
+	v = p.bytes[pos]
+	p.readCursor += 1
+	return
+}
+
+// ReadBool reads one byte 1/0 from the beginning of unread payload
+func (p *Packet) ReadBool() (v bool) {
+	return p.ReadOneByte() != 0
+}
+
+// ReadBytes reads bytes from the beginning of unread payload
+func (p *Packet) ReadBytes(size int) []byte {
+	readPos := p.readCursor
+	readEnd := readPos + uint32(size)
+
+	if size > MaxPayloadLength || readEnd > p.GetPayloadLen() {
+		panic(ErrPayloadTooSmall)
+	}
+
+	p.readCursor = readEnd
+	return p.payloadSlice(readPos, readEnd)
 }
 
 // ReadUint16 reads one uint16 from the beginning of unread payload
-func (p *Packet) ReadUint16() (v uint16) {
-	pos := p.readCursor + prePayloadSize
-	v = packetEndian.Uint16(p.bytes[pos : pos+2])
-	p.readCursor += 2
-	return
-}
-
-// ReadInt16 reads one int16 from the beginning of unread payload
-func (p *Packet) ReadInt16() (v int16) {
-	pos := p.readCursor + prePayloadSize
-	*(*uint16)(unsafe.Pointer(&v)) = packetEndian.Uint16(p.bytes[pos : pos+2])
-	p.readCursor += 2
-	return
+func (p *Packet) ReadUint16() uint16 {
+	return packetEndian.Uint16(p.ReadBytes(2))
 }
 
 // ReadUint32 reads one uint32 from the beginning of unread payload
-func (p *Packet) ReadUint32() (v uint32) {
-	pos := p.readCursor + prePayloadSize
-	v = packetEndian.Uint32(p.bytes[pos : pos+4])
-	p.readCursor += 4
-	return
+func (p *Packet) ReadUint32() uint32 {
+	return packetEndian.Uint32(p.ReadBytes(4))
 }
 
 // ReadUint64 reads one uint64 from the beginning of unread payload
@@ -373,69 +328,12 @@ func (p *Packet) ReadUint64() (v uint64) {
 	return
 }
 
-// ReadBytes reads bytes from the beginning of unread payload
-func (p *Packet) ReadBytes(size uint32) []byte {
-	pos := p.readCursor + prePayloadSize
-	if pos > uint32(len(p.bytes)) || pos+size > uint32(len(p.bytes)) {
-		panic(fmt.Errorf("Packet %p bytes is %d, but reading %d+%d", p, len(p.bytes), pos, size))
-	}
-
-	bytes := p.bytes[pos : pos+size] // bytes are not copied
-	p.readCursor += size
-	return bytes
-}
-
-// ReadVarStr reads a varsize string from the beginning of unread  payload
-func (p *Packet) ReadVarStr() string {
-	b := p.ReadVarBytesH()
-	return string(b)
-}
-
-// ReadVarBytesI reads a varsize slice of bytes from the beginning of unread payload
 func (p *Packet) ReadVarBytesI() []byte {
-	blen := p.ReadUint32()
-	return p.ReadBytes(blen)
+	bl := p.ReadUint32()
+	return p.ReadBytes(int(bl))
 }
 
-// ReadVarBytesH reads a varsize slice of bytes from the beginning of unread payload
 func (p *Packet) ReadVarBytesH() []byte {
-	blen := p.ReadUint16()
-	return p.ReadBytes(uint32(blen))
-}
-
-func (p *Packet) WriteMapStringString(m map[string]string) {
-	p.WriteUint32(uint32(len(m)))
-	for k, v := range m {
-		p.WriteVarStr(k)
-		p.WriteVarStr(v)
-	}
-}
-
-func (p *Packet) ReadMapStringString() map[string]string {
-	size := p.ReadUint32()
-	m := make(map[string]string, size)
-	for i := uint32(0); i < size; i++ {
-		k := p.ReadVarStr()
-		v := p.ReadVarStr()
-		m[k] = v
-	}
-	return m
-}
-
-// WriteStringList appends a list of strings to the end of payload
-func (p *Packet) WriteStringList(list []string) {
-	p.WriteUint16(uint16(len(list)))
-	for _, s := range list {
-		p.WriteVarStr(s)
-	}
-}
-
-// ReadStringList reads a list of strings from the beginning of unread payload
-func (p *Packet) ReadStringList() []string {
-	listlen := int(p.ReadUint16())
-	list := make([]string, listlen)
-	for i := 0; i < listlen; i++ {
-		list[i] = p.ReadVarStr()
-	}
-	return list
+	bl := p.ReadUint16()
+	return p.ReadBytes(int(bl))
 }
