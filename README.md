@@ -83,7 +83,7 @@ func main() {
 
 	packet := packetconn.NewPacket()
 	payload := make([]byte, 1024)
-	packet.AppendBytes(payload)
+	packet.WriteBytes(payload)
 
 	pc.Send(packet)
 	recvPacket := <-pc.Recv()

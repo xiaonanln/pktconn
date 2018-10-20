@@ -260,6 +260,12 @@ func (p *Packet) ReadFloat64() float64 {
 	return math.Float64frombits(p.ReadUint64())
 }
 
+// Write write bytes to the packet payload. If the payload size reaches limit, Write returns 0, nil
+// Implements io.Writer interface
+func (p *Packet) Write(p []byte) (n int, err error) {
+
+}
+
 // WriteBytes appends slice of bytes to the end of payload
 func (p *Packet) WriteBytes(v []byte) {
 	bytesLen := uint32(len(v))
