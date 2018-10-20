@@ -15,8 +15,7 @@ import (
 
 const (
 	port               = 14572
-	noackCountLimit    = 0
-	perfClientCount    = 5000
+	perfClientCount    = 7000
 	perfPayloadSizeMin = 0
 	perfPayloadSizeMax = 2048
 )
@@ -74,20 +73,9 @@ restart:
 	packet.WriteBytes(payload)
 
 	<-startSendRecv
-	noackCount := 0
 
 	for {
 		pc.Send(packet)
-		noackCount += 1
-
-		for noackCount > noackCountLimit {
-			<-pc.Recv()
-			noackCount -= 1
-		}
-	}
-
-	for noackCount > 0 {
 		<-pc.Recv()
-		noackCount -= 1
 	}
 }
