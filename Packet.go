@@ -230,16 +230,28 @@ func (p *Packet) WriteUint16(v uint16) {
 	packetEndian.PutUint16(pl, v)
 }
 
+func (p *Packet) WriteInt16(v int16) {
+	p.WriteUint16(uint16(v))
+}
+
 // WriteUint32 appends one uint32 to the end of payload
 func (p *Packet) WriteUint32(v uint32) {
 	pl := p.extendPayload(4)
 	packetEndian.PutUint32(pl, v)
 }
 
+func (p *Packet) WriteInt32(v int32) {
+	p.WriteUint32(uint32(v))
+}
+
 // WriteUint64 appends one uint64 to the end of payload
 func (p *Packet) WriteUint64(v uint64) {
 	pl := p.extendPayload(8)
 	packetEndian.PutUint64(pl, v)
+}
+
+func (p *Packet) WriteInt64(v int64) {
+	p.WriteUint64(uint64(v))
 }
 
 // WriteFloat32 appends one float32 to the end of payload
@@ -315,17 +327,26 @@ func (p *Packet) ReadUint16() uint16 {
 	return packetEndian.Uint16(p.ReadBytes(2))
 }
 
+func (p *Packet) ReadInt16() int16 {
+	return int16(p.ReadUint16())
+}
+
 // ReadUint32 reads one uint32 from the beginning of unread payload
 func (p *Packet) ReadUint32() uint32 {
 	return packetEndian.Uint32(p.ReadBytes(4))
 }
 
+func (p *Packet) ReadInt32() int32 {
+	return int32(p.ReadUint32())
+}
+
 // ReadUint64 reads one uint64 from the beginning of unread payload
 func (p *Packet) ReadUint64() (v uint64) {
-	pos := p.readCursor + prePayloadSize
-	v = packetEndian.Uint64(p.bytes[pos : pos+8])
-	p.readCursor += 8
-	return
+	return packetEndian.Uint64(p.ReadBytes(8))
+}
+
+func (p *Packet) ReadInt64() int64 {
+	return int64(p.ReadUint64())
 }
 
 func (p *Packet) ReadVarBytesI() []byte {
