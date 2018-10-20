@@ -197,7 +197,7 @@ func (pc *PacketConn) flush() (err error) {
 
 func (pc *PacketConn) writePacket(packet *Packet) error {
 	pdata := packet.data()
-	err := WriteAll(pc.conn, pdata)
+	err := writeFull(pc.conn, pdata)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (pc *PacketConn) writePacket(packet *Packet) error {
 		var crc32Buffer [4]byte
 		payloadCrc := crc32.ChecksumIEEE(pdata)
 		packetEndian.PutUint32(crc32Buffer[:], payloadCrc)
-		return WriteAll(pc.conn, crc32Buffer[:])
+		return writeFull(pc.conn, crc32Buffer[:])
 	} else {
 		return nil
 	}
@@ -219,7 +219,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	var err error
 
 	// receive payload length (uint32)
-	err = ReadAll(pc.conn, uint32Buffer[:])
+	err = readFull(pc.conn, uint32Buffer[:])
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	packet := NewPacket()
 	packet.Src = pc
 	payload := packet.extendPayload(int(payloadSize))
-	err = ReadAll(pc.conn, payload)
+	err = readFull(pc.conn, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 
 	// receive checksum (uint32)
 	if pc.Config.CrcChecksum {
-		err = ReadAll(pc.conn, uint32Buffer[:])
+		err = readFull(pc.conn, uint32Buffer[:])
 		if err != nil {
 			return nil, err
 		}
