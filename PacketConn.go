@@ -232,13 +232,13 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	// allocate a packet to receive payload
 	packet := NewPacket()
 	packet.Src = pc
-	packet.AssureCapacity(payloadSize)
-	err = ReadAll(pc.conn, packet.bytes[prePayloadSize:prePayloadSize+payloadSize])
+	payload := packet.extendPayload(payloadSize)
+	err = ReadAll(pc.conn, payload)
 	if err != nil {
 		return nil, err
 	}
 
-	packet.setPayloadLen(payloadSize)
+	packet.SetPayloadLen(payloadSize)
 
 	// receive checksum (uint32)
 	if pc.Config.CrcChecksum {

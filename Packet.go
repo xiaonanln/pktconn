@@ -3,6 +3,7 @@ package packetconn
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"sync"
 
@@ -70,8 +71,8 @@ func allocPacket() *Packet {
 	pkt := packetPool.Get().(*Packet)
 	pkt.refcount = 1
 
-	if pkt.GetPayloadLen() != 0 {
-		panic(fmt.Errorf("allocPacket: payload should be 0, but is %d", pkt.GetPayloadLen()))
+	if pkt.PayloadLen() != 0 {
+		panic(fmt.Errorf("allocPacket: payload should be 0, but is %d", pkt.PayloadLen()))
 	}
 
 	return pkt
@@ -82,73 +83,82 @@ func NewPacket() *Packet {
 	return allocPacket()
 }
 
-func (p *Packet) AssureCapacity(need uint32) {
-	requireCap := p.GetPayloadLen() + need
-	oldCap := p.PayloadCap()
-
-	if requireCap <= oldCap { // most case
-		return
-	}
-
-	// try to find the proper capacity for the need bytes
-	resizeToCap := getPayloadCapOfPayloadLen(requireCap)
-
-	buffer := packetBufferPools[resizeToCap].Get().([]byte)
-	if len(buffer) != int(resizeToCap+payloadLengthSize) {
-		panic(fmt.Errorf("buffer size should be %d, but is %d", resizeToCap, len(buffer)))
-	}
-	copy(buffer, p.data())
-	oldPayloadCap := p.PayloadCap()
-	oldBytes := p.bytes
-	p.bytes = buffer
-
-	if oldPayloadCap > minPayloadCap {
-		// release old bytes
-		packetBufferPools[oldPayloadCap].Put(oldBytes)
-	}
+func (p *Packet) payloadSlice(i, j uint32) []byte {
+	return p.bytes[i+prePayloadSize : j+prePayloadSize]
 }
 
-// AddRefCount adds reference count of packet
-func (p *Packet) AddRefCount(add int64) {
-	atomic.AddInt64(&p.refcount, add)
+// PayloadLen returns the payload length
+func (p *Packet) PayloadLen() uint32 {
+	packetEndian.Uint32(p.bytes[0:4])
+	return *(*uint32)(unsafe.Pointer(&p.bytes[0]))
+}
+
+func (p *Packet) SetPayloadLen(plen uint32) {
+	pplen := (*uint32)(unsafe.Pointer(&p.bytes[0]))
+	*pplen = plen
 }
 
 // Payload returns the total payload of packet
 func (p *Packet) Payload() []byte {
-	return p.bytes[prePayloadSize : prePayloadSize+p.GetPayloadLen()]
-}
-
-// UnwrittenPayload returns the unwritten payload, which is the left payload capacity
-func (p *Packet) UnwrittenPayload() []byte {
-	payloadLen := p.GetPayloadLen()
-	return p.bytes[prePayloadSize+payloadLen:]
-}
-
-func (p *Packet) TotalPayload() []byte {
-	return p.bytes[prePayloadSize:]
+	return p.bytes[prePayloadSize : prePayloadSize+p.PayloadLen()]
 }
 
 // UnreadPayload returns the unread payload
 func (p *Packet) UnreadPayload() []byte {
 	pos := p.readCursor + prePayloadSize
-	payloadEnd := prePayloadSize + p.GetPayloadLen()
+	payloadEnd := prePayloadSize + p.PayloadLen()
 	return p.bytes[pos:payloadEnd]
 }
 
 // HasUnreadPayload returns if all payload is read
 func (p *Packet) HasUnreadPayload() bool {
 	pos := p.readCursor + prePayloadSize
-	plen := p.GetPayloadLen()
+	plen := p.PayloadLen()
 	return pos < plen
 }
 
 func (p *Packet) data() []byte {
-	return p.bytes[0 : prePayloadSize+p.GetPayloadLen()]
+	return p.bytes[0 : prePayloadSize+p.PayloadLen()]
 }
 
 // PayloadCap returns the current payload capacity
 func (p *Packet) PayloadCap() uint32 {
 	return uint32(len(p.bytes) - prePayloadSize)
+}
+
+func (p *Packet) extendPayload(size uint32) []byte {
+	payloadLen := p.PayloadLen()
+	newPayloadLen := payloadLen + size
+	oldCap := p.PayloadCap()
+
+	if newPayloadLen <= oldCap { // most case
+		p.SetPayloadLen(newPayloadLen)
+		return p.payloadSlice(payloadLen, newPayloadLen)
+	}
+
+	// try to find the proper capacity for the size bytes
+	resizeToCap := getPayloadCapOfPayloadLen(newPayloadLen)
+
+	buffer := packetBufferPools[resizeToCap].Get().([]byte)
+	if len(buffer) != int(resizeToCap+prePayloadSize) {
+		panic(fmt.Errorf("buffer size should be %d, but is %d", resizeToCap, len(buffer)))
+	}
+	copy(buffer, p.data())
+	oldBytes := p.bytes
+	p.bytes = buffer
+
+	if oldCap > minPayloadCap {
+		// release old bytes
+		packetBufferPools[oldCap].Put(oldBytes)
+	}
+
+	p.SetPayloadLen(newPayloadLen)
+	return p.payloadSlice(payloadLen, newPayloadLen)
+}
+
+// AddRefCount adds reference count of packet
+func (p *Packet) AddRefCount(add int64) {
+	atomic.AddInt64(&p.refcount, add)
 }
 
 // Release releases the packet to packet pool
@@ -166,7 +176,7 @@ func (p *Packet) Release() {
 		}
 
 		p.readCursor = 0
-		p.setPayloadLen(0)
+		p.SetPayloadLen(0)
 		packetPool.Put(p)
 	} else if refcount < 0 {
 		panic(fmt.Errorf("releasing packet with refcount=%d", p.refcount))
@@ -176,14 +186,26 @@ func (p *Packet) Release() {
 // ClearPayload clears packet payload
 func (p *Packet) ClearPayload() {
 	p.readCursor = 0
-	p.setPayloadLen(0)
+	p.SetPayloadLen(0)
+}
+
+func (p *Packet) SetReadPos(pos uint32) {
+	plen := p.PayloadLen()
+	if pos > plen {
+		pos = plen
+	}
+
+	p.readCursor = pos
+}
+
+func (p *Packet) ReadPos() uint32 {
+	return p.readCursor
 }
 
 // WriteByte appends one byte to the end of payload
 func (p *Packet) WriteByte(b byte) {
-	p.AssureCapacity(1)
-	p.bytes[prePayloadSize+p.GetPayloadLen()] = b
-	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 1
+	pl := p.extendPayload(1)
+	pl[0] = b
 }
 
 // ReadOneByte reads one byte from the beginning
@@ -210,23 +232,19 @@ func (p *Packet) ReadBool() (v bool) {
 
 // WriteUint16 appends one uint16 to the end of payload
 func (p *Packet) WriteUint16(v uint16) {
-	p.AssureCapacity(2)
-	payloadEnd := prePayloadSize + p.GetPayloadLen()
-	packetEndian.PutUint16(p.bytes[payloadEnd:payloadEnd+2], v)
-	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 2
+	pl := p.extendPayload(2)
+	packetEndian.PutUint16(pl, v)
 }
 
 // WriteUint32 appends one uint32 to the end of payload
 func (p *Packet) WriteUint32(v uint32) {
-	p.AssureCapacity(4)
-	payloadEnd := prePayloadSize + p.GetPayloadLen()
-	packetEndian.PutUint32(p.bytes[payloadEnd:payloadEnd+4], v)
-	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 4
+	pl := p.extendPayload(4)
+	packetEndian.PutUint32(pl, v)
 }
 
 // PopUint32 pops one uint32 from the end of payload
 func (p *Packet) PopUint32() (v uint32) {
-	payloadEnd := prePayloadSize + p.GetPayloadLen()
+	payloadEnd := prePayloadSize + p.PayloadLen()
 	v = packetEndian.Uint32(p.bytes[payloadEnd-4 : payloadEnd])
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) -= 4
 	return
@@ -234,9 +252,8 @@ func (p *Packet) PopUint32() (v uint32) {
 
 // WriteUint64 appends one uint64 to the end of payload
 func (p *Packet) WriteUint64(v uint64) {
-	p.AssureCapacity(8)
-	payloadEnd := prePayloadSize + p.GetPayloadLen()
-	packetEndian.PutUint64(p.bytes[payloadEnd:payloadEnd+8], v)
+	pl := p.extendPayload(8)
+	packetEndian.PutUint64(pl, v)
 	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += 8
 }
 
@@ -262,17 +279,22 @@ func (p *Packet) ReadFloat64() float64 {
 
 // Write write bytes to the packet payload. If the payload size reaches limit, Write returns 0, nil
 // Implements io.Writer interface
-func (p *Packet) Write(p []byte) (n int, err error) {
-
+func (p *Packet) Write(b []byte) (n int, err error) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			n, err = 0, io.EOF
+		}
+	}()
+	p.WriteBytes(b)
+	return len(b), nil
 }
 
 // WriteBytes appends slice of bytes to the end of payload
 func (p *Packet) WriteBytes(v []byte) {
 	bytesLen := uint32(len(v))
-	p.AssureCapacity(bytesLen)
-	payloadEnd := prePayloadSize + p.GetPayloadLen()
-	copy(p.bytes[payloadEnd:payloadEnd+bytesLen], v)
-	*(*uint32)(unsafe.Pointer(&p.bytes[0])) += bytesLen
+	pl := p.extendPayload(bytesLen)
+	copy(pl, v)
 }
 
 // WriteVarStr appends a varsize string to the end of payload
@@ -389,14 +411,4 @@ func (p *Packet) ReadStringList() []string {
 		list[i] = p.ReadVarStr()
 	}
 	return list
-}
-
-// GetPayloadLen returns the payload length
-func (p *Packet) GetPayloadLen() uint32 {
-	return *(*uint32)(unsafe.Pointer(&p.bytes[0]))
-}
-
-func (p *Packet) setPayloadLen(plen uint32) {
-	pplen := (*uint32)(unsafe.Pointer(&p.bytes[0]))
-	*pplen = plen
 }

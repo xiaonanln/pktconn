@@ -28,7 +28,7 @@ func main() {
 			fmt.Printf("client connected: %s\n", pc.RemoteAddr())
 
 			for pkt := range pc.Recv() {
-				fmt.Printf("recv packet: %d\n", pkt.GetPayloadLen())
+				fmt.Printf("recv packet: %d\n", pkt.PayloadLen())
 				pc.Send(pkt) // send packet back to the client
 				pkt.Release()
 			}
