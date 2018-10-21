@@ -36,7 +36,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		RecvChanSize:    defaultRecvChanSize,
 		FlushInterval:   defaultFlushInterval,
-		CrcChecksum:     true,
+		CrcChecksum:     false,
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
 	}
