@@ -64,19 +64,15 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 
 		log.Printf("%s connected", conn.RemoteAddr())
 		go func() {
-			tcpConn := conn.(*net.TCPConn)
-			tcpConn.SetReadBuffer(8192 * 2)
-			tcpConn.SetWriteBuffer(8192 * 2)
-			tcpConn.SetNoDelay(false)
-
 			cfg := packetconn.DefaultConfig()
 			cfg.FlushInterval = time.Millisecond * 100
 			cfg.CrcChecksum = false
-			cfg.WriteBufferSize = 8192
-			cfg.ReadBufferSize = 8192
+			cfg.WriteBufferSize = 8192*2
+			cfg.ReadBufferSize = 8192*2
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
 			for pkt := range pc.Recv() {
+				pc.Send(pkt)
 				pc.Send(pkt)
 				pkt.Release()
 				atomic.AddUint64(&ts.handlePacketCount, 1)

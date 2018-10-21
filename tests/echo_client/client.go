@@ -79,6 +79,11 @@ restart:
 
 	for {
 		pc.Send(packet)
-		<-pc.Recv()
+		if _, ok := <-pc.Recv(); !ok {
+			break
+		}
+		if _, ok := <-pc.Recv(); !ok {
+			break
+		}
 	}
 }
