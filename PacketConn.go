@@ -15,7 +15,7 @@ import (
 
 const (
 	MaxPayloadLength       = 32 * 1024 * 1024
-	defaultRecvChanSize    = 1000
+	defaultRecvChanSize    = 100
 	defaultFlushInterval   = time.Millisecond * 5
 	defaultReadBufferSize  = 16384
 	defaultWriteBufferSize = 16384
