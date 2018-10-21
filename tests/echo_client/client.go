@@ -63,6 +63,9 @@ restart:
 
 	cfg := packetconn.DefaultConfig()
 	cfg.CrcChecksum = false
+	cfg.ReadBufferSize = 8192
+	cfg.WriteBufferSize = 8192
+	cfg.RecvChanSize = 10
 	pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 	defer pc.Close()
 
