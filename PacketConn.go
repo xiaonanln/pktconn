@@ -16,9 +16,9 @@ import (
 const (
 	MaxPayloadLength       = 32 * 1024 * 1024
 	defaultRecvChanSize    = 100
-	defaultFlushInterval   = time.Millisecond * 5
-	defaultReadBufferSize  = 16384
-	defaultWriteBufferSize = 16384
+	defaultFlushInterval   = time.Millisecond * 10
+	defaultReadBufferSize  = 8192
+	defaultWriteBufferSize = 8192
 
 	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
 	prePayloadSize    = payloadLengthSize
