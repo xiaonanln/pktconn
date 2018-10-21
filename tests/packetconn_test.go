@@ -126,7 +126,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 				}
 			}
 		} else {
-			t.Fatalf("can not recv packet")
+			t.Fatalf("can not recv packet: %v", pconn.Err())
 		}
 	}
 }

@@ -51,6 +51,8 @@ type PacketConn struct {
 	Config             Config
 	ctx                context.Context
 	cancel             context.CancelFunc
+	err                error
+	once               uint32
 }
 
 // NewPacketConn creates a packet connection based on network connection
@@ -106,7 +108,7 @@ func validateConfig(cfg *Config) {
 }
 
 func (pc *PacketConn) flushRoutine(interval time.Duration) {
-	defer pc.Close()
+	defer pc.closeWithError(nil)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -118,6 +120,7 @@ loop:
 		case <-ticker.C:
 			err := pc.flush()
 			if err != nil {
+				pc.closeWithError(err)
 				break loop
 			}
 		case <-ctxDone:
@@ -127,13 +130,14 @@ loop:
 }
 
 func (pc *PacketConn) recvRoutine() {
-	defer pc.Close()
+	defer pc.closeWithError(nil)
 	recvChan := pc.recvChan
 	defer close(recvChan)
 
 	for {
 		packet, err := pc.recv()
 		if err != nil {
+			pc.closeWithError(err)
 			break
 		}
 
@@ -262,8 +266,21 @@ func (pc *PacketConn) Recv() <-chan *Packet {
 
 // Close the connection
 func (pc *PacketConn) Close() error {
-	pc.cancel()
-	return pc.conn.Close()
+	return pc.closeWithError(nil)
+}
+
+func (pc *PacketConn) closeWithError(err error) error {
+	if atomic.CompareAndSwapUint32(&pc.once, 0, 1) {
+		pc.err = err
+		pc.cancel()
+		return pc.conn.Close()
+	} else {
+		return nil
+	}
+}
+
+func (pc *PacketConn) Err() error {
+	return pc.err
 }
 
 // RemoteAddr return the remote address
