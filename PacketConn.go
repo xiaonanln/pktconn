@@ -30,9 +30,7 @@ type Config struct {
 	CrcChecksum     bool          `json:"crc_checksum"`
 	ReadBufferSize  int           `json:"read_buffer_size"`
 	WriteBufferSize int           `json:"write_buffer_size"`
-
-	NotifyRecvChan chan *Packet
-	Tag            interface{}
+	NotifyRecvChan  chan *Packet
 }
 
 func DefaultConfig() *Config {
@@ -43,7 +41,6 @@ func DefaultConfig() *Config {
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
 		NotifyRecvChan:  nil,
-		Tag:             nil,
 	}
 }
 
