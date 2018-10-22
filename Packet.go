@@ -300,6 +300,14 @@ func (p *Packet) WriteVarBytesH(b []byte) {
 	p.WriteBytes(b)
 }
 
+func (p *Packet) WriteVarStrI(s string) {
+	p.WriteVarBytesI([]byte(s))
+}
+
+func (p *Packet) WriteVarStrH(s string) {
+	p.WriteVarBytesH([]byte(s))
+}
+
 // ReadOneByte reads one byte from the beginning
 func (p *Packet) ReadOneByte() (v byte) {
 	pos := p.readCursor + prePayloadSize
@@ -361,4 +369,12 @@ func (p *Packet) ReadVarBytesI() []byte {
 func (p *Packet) ReadVarBytesH() []byte {
 	bl := p.ReadUint16()
 	return p.ReadBytes(int(bl))
+}
+
+func (p *Packet) ReadVarStrI() string {
+	return string(p.ReadVarBytesI())
+}
+
+func (p *Packet) ReadVarStrH() string {
+	return string(p.ReadVarBytesH())
 }

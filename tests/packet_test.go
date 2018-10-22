@@ -79,6 +79,7 @@ func TestPacketGeneral(t *testing.T) {
 	if string(pkt.ReadVarBytesI()) != "hello3" {
 		t.Fatalf("read wrong")
 	}
+
 	pkt.Release()
 }
 
