@@ -49,6 +49,7 @@ func DefaultConfig() *Config {
 
 // PacketConn is a connection that send and receive data packets upon a network stream connection
 type PacketConn struct {
+	Tag interface{}
 	context.Context
 	Config Config
 
@@ -247,7 +248,6 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	// allocate a packet to receive payload
 	packet := NewPacket()
 	packet.Src = pc
-	packet.Tag = pc.Config.Tag
 	payload := packet.extendPayload(int(payloadSize))
 	err = readFull(pc.conn, payload)
 	if err != nil {
@@ -312,8 +312,4 @@ func (pc *PacketConn) LocalAddr() net.Addr {
 
 func (pc *PacketConn) String() string {
 	return fmt.Sprintf("PacketConn<%s-%s>", pc.LocalAddr(), pc.RemoteAddr())
-}
-
-func (pc *PacketConn) Tag() interface{} {
-	return pc.Config.Tag
 }

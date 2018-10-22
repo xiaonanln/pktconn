@@ -118,9 +118,6 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		}
 		pconn.Send(packet)
 		if recvPacket, ok := <-pconn.Recv(); ok {
-			if recvPacket.Tag.(*testing.T) != t {
-				t.Errorf("recv packet tag erorr: %v", recvPacket.Tag)
-			}
 			if packet.GetPayloadLen() != recvPacket.GetPayloadLen() {
 				t.Errorf("send packet len %d, but recv len %d", packet.GetPayloadLen(), recvPacket.GetPayloadLen())
 			}
