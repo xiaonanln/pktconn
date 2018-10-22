@@ -33,6 +33,7 @@ type Config struct {
 
 	RecvChan  chan *Packet
 	CloseChan chan *PacketConn
+	PacketTag interface{}
 }
 
 func DefaultConfig() *Config {
@@ -44,6 +45,7 @@ func DefaultConfig() *Config {
 		WriteBufferSize: defaultWriteBufferSize,
 		RecvChan:        nil,
 		CloseChan:       nil,
+		PacketTag:       nil,
 	}
 }
 
@@ -250,6 +252,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	// allocate a packet to receive payload
 	packet := NewPacket()
 	packet.Src = pc
+	packet.Tag = pc.Config.PacketTag
 	payload := packet.extendPayload(int(payloadSize))
 	err = readFull(pc.conn, payload)
 	if err != nil {

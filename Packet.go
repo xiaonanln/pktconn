@@ -59,7 +59,9 @@ func getPayloadCapOfPayloadLen(payloadLen uint32) uint32 {
 
 // Packet is a packet for sending data
 type Packet struct {
-	Src          *PacketConn
+	Src *PacketConn
+	Tag interface{}
+
 	readCursor   uint32
 	refcount     int64
 	bytes        []byte
