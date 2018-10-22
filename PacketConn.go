@@ -148,7 +148,6 @@ loop:
 func (pc *PacketConn) recvRoutine() {
 	defer pc.closeWithError(nil)
 	recvChan := pc.recvChan
-	defer close(recvChan)
 
 	for {
 		packet, err := pc.recv()
@@ -292,6 +291,10 @@ func (pc *PacketConn) closeWithError(err error) error {
 		pc.err = err
 		pc.cancel()
 		err := pc.conn.Close()
+
+		if pc.recvChan != pc.Config.RecvChan {
+			close(pc.recvChan)
+		}
 
 		if pc.closeChan != nil {
 			pc.closeChan <- pc
