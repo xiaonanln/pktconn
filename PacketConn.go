@@ -30,6 +30,9 @@ type Config struct {
 	CrcChecksum     bool          `json:"crc_checksum"`
 	ReadBufferSize  int           `json:"read_buffer_size"`
 	WriteBufferSize int           `json:"write_buffer_size"`
+
+	RecvChan  chan *Packet
+	CloseChan chan *PacketConn
 }
 
 func DefaultConfig() *Config {
@@ -39,16 +42,20 @@ func DefaultConfig() *Config {
 		CrcChecksum:     false,
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
+		RecvChan:        nil,
+		CloseChan:       nil,
 	}
 }
 
 // PacketConn is a connection that send and receive data packets upon a network stream connection
 type PacketConn struct {
+	Config Config
+
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
 	recvChan           chan *Packet
-	Config             Config
+	closeChan          chan *PacketConn
 	ctx                context.Context
 	cancel             context.CancelFunc
 	err                error
@@ -76,12 +83,19 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 	}
 
 	pcCtx, pcCancel := context.WithCancel(ctx)
+
+	recvChan := cfg.RecvChan
+	if recvChan == nil {
+		recvChan = make(chan *Packet, cfg.RecvChanSize)
+	}
+
 	pc := &PacketConn{
-		conn:     conn,
-		recvChan: make(chan *Packet, cfg.RecvChanSize),
-		Config:   *cfg,
-		ctx:      pcCtx,
-		cancel:   pcCancel,
+		conn:      conn,
+		recvChan:  recvChan,
+		closeChan: cfg.CloseChan,
+		Config:    *cfg,
+		ctx:       pcCtx,
+		cancel:    pcCancel,
 	}
 
 	go pc.recvRoutine()
@@ -271,9 +285,16 @@ func (pc *PacketConn) Close() error {
 
 func (pc *PacketConn) closeWithError(err error) error {
 	if atomic.CompareAndSwapUint32(&pc.once, 0, 1) {
+		// close exactly once
 		pc.err = err
 		pc.cancel()
-		return pc.conn.Close()
+		err := pc.conn.Close()
+
+		if pc.closeChan != nil {
+			pc.closeChan <- pc
+		}
+
+		return err
 	} else {
 		return nil
 	}
