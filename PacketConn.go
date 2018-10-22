@@ -31,9 +31,8 @@ type Config struct {
 	ReadBufferSize  int           `json:"read_buffer_size"`
 	WriteBufferSize int           `json:"write_buffer_size"`
 
-	RecvChan  chan *Packet
-	CloseChan chan *PacketConn
-	PacketTag interface{}
+	NotifyRecvChan chan *Packet
+	Tag            interface{}
 }
 
 func DefaultConfig() *Config {
@@ -43,22 +42,20 @@ func DefaultConfig() *Config {
 		CrcChecksum:     false,
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
-		RecvChan:        nil,
-		CloseChan:       nil,
-		PacketTag:       nil,
+		NotifyRecvChan:  nil,
+		Tag:             nil,
 	}
 }
 
 // PacketConn is a connection that send and receive data packets upon a network stream connection
 type PacketConn struct {
+	context.Context
 	Config Config
 
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
 	recvChan           chan *Packet
-	closeChan          chan *PacketConn
-	ctx                context.Context
 	cancel             context.CancelFunc
 	err                error
 	once               uint32
@@ -86,18 +83,17 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 
 	pcCtx, pcCancel := context.WithCancel(ctx)
 
-	recvChan := cfg.RecvChan
+	recvChan := cfg.NotifyRecvChan
 	if recvChan == nil {
 		recvChan = make(chan *Packet, cfg.RecvChanSize)
 	}
 
 	pc := &PacketConn{
-		conn:      conn,
-		recvChan:  recvChan,
-		closeChan: cfg.CloseChan,
-		Config:    *cfg,
-		ctx:       pcCtx,
-		cancel:    pcCancel,
+		conn:     conn,
+		recvChan: recvChan,
+		Config:   *cfg,
+		Context:  pcCtx,
+		cancel:   pcCancel,
 	}
 
 	go pc.recvRoutine()
@@ -129,7 +125,7 @@ func (pc *PacketConn) flushRoutine(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	ctxDone := pc.ctx.Done()
+	ctxDone := pc.Done()
 loop:
 	for {
 		select {
@@ -251,7 +247,7 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	// allocate a packet to receive payload
 	packet := NewPacket()
 	packet.Src = pc
-	packet.Tag = pc.Config.PacketTag
+	packet.Tag = pc.Config.Tag
 	payload := packet.extendPayload(int(payloadSize))
 	err = readFull(pc.conn, payload)
 	if err != nil {
@@ -289,17 +285,11 @@ func (pc *PacketConn) closeWithError(err error) error {
 	if atomic.CompareAndSwapUint32(&pc.once, 0, 1) {
 		// close exactly once
 		pc.err = err
-		pc.cancel()
 		err := pc.conn.Close()
-
-		if pc.recvChan != pc.Config.RecvChan {
+		if pc.recvChan != pc.Config.NotifyRecvChan {
 			close(pc.recvChan)
 		}
-
-		if pc.closeChan != nil {
-			pc.closeChan <- pc
-		}
-
+		pc.cancel()
 		return err
 	} else {
 		return nil
@@ -322,4 +312,8 @@ func (pc *PacketConn) LocalAddr() net.Addr {
 
 func (pc *PacketConn) String() string {
 	return fmt.Sprintf("PacketConn<%s-%s>", pc.LocalAddr(), pc.RemoteAddr())
+}
+
+func (pc *PacketConn) Tag() interface{} {
+	return pc.Config.Tag
 }

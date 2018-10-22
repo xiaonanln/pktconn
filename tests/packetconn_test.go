@@ -101,7 +101,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		cfg.ReadBufferSize = 0
 		cfg.WriteBufferSize = 0
 	}
-	cfg.PacketTag = t
+	cfg.Tag = t
 
 	pconn := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
