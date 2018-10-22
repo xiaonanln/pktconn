@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"net"
 
 	"sync"
@@ -46,10 +47,10 @@ func DefaultConfig() *Config {
 
 // PacketConn is a connection that send and receive data packets upon a network stream connection
 type PacketConn struct {
-	Tag interface{}
-	context.Context
+	Tag    interface{}
 	Config Config
 
+	ctx                context.Context
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
@@ -90,7 +91,7 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 		conn:     conn,
 		recvChan: recvChan,
 		Config:   *cfg,
-		Context:  pcCtx,
+		ctx:      pcCtx,
 		cancel:   pcCancel,
 	}
 
@@ -118,12 +119,12 @@ func validateConfig(cfg *Config) {
 }
 
 func (pc *PacketConn) flushRoutine(interval time.Duration) {
-	defer pc.closeWithError(nil)
+	defer pc.Close()
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	ctxDone := pc.Done()
+	ctxDone := pc.ctx.Done()
 loop:
 	for {
 		select {
@@ -134,13 +135,14 @@ loop:
 				break loop
 			}
 		case <-ctxDone:
+			pc.closeWithError(pc.ctx.Err())
 			break loop
 		}
 	}
 }
 
 func (pc *PacketConn) recvRoutine() {
-	defer pc.closeWithError(nil)
+	defer pc.Close()
 	recvChan := pc.recvChan
 
 	for {
@@ -275,7 +277,7 @@ func (pc *PacketConn) Recv() <-chan *Packet {
 
 // Close the connection
 func (pc *PacketConn) Close() error {
-	return pc.closeWithError(nil)
+	return pc.closeWithError(io.EOF)
 }
 
 func (pc *PacketConn) closeWithError(err error) error {
@@ -291,6 +293,10 @@ func (pc *PacketConn) closeWithError(err error) error {
 	} else {
 		return nil
 	}
+}
+
+func (pc *PacketConn) Done() <-chan struct{} {
+	return pc.ctx.Done()
 }
 
 func (pc *PacketConn) Err() error {
