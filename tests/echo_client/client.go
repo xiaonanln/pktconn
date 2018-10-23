@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	packetconn "github.com/xiaonanln/go-packetconn"
+	packetconn "github.com/xiaonanln/pktconn"
 )
 
 const (

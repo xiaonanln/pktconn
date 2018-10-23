@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xiaonanln/go-packetconn"
+	"github.com/xiaonanln/pktconn"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/xiaonanln/go-packetconn"
+	"github.com/xiaonanln/pktconn"
 )
 
 func main() {

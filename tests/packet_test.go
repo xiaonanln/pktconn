@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/xiaonanln/go-packetconn"
+	"github.com/xiaonanln/pktconn"
 )
 
 func TestNewPacket(t *testing.T) {

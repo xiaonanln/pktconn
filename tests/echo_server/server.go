@@ -12,7 +12,7 @@ import (
 
 	_ "net/http/pprof"
 
-	packetconn "github.com/xiaonanln/go-packetconn"
+	packetconn "github.com/xiaonanln/pktconn"
 )
 
 const (
@@ -67,8 +67,8 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 			cfg := packetconn.DefaultConfig()
 			cfg.FlushInterval = time.Millisecond * 100
 			cfg.CrcChecksum = false
-			cfg.WriteBufferSize = 8192*2
-			cfg.ReadBufferSize = 8192*2
+			cfg.WriteBufferSize = 8192 * 2
+			cfg.ReadBufferSize = 8192 * 2
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
 			for pkt := range pc.Recv() {
