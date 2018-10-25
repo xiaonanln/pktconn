@@ -6,12 +6,9 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
-
 	"sync"
-
-	"time"
-
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -32,6 +29,7 @@ type Config struct {
 	ReadBufferSize  int           `json:"read_buffer_size"`
 	WriteBufferSize int           `json:"write_buffer_size"`
 	NotifyRecvChan  chan *Packet
+	Tag             interface{}
 }
 
 func DefaultConfig() *Config {
@@ -42,6 +40,7 @@ func DefaultConfig() *Config {
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
 		NotifyRecvChan:  nil,
+		Tag:             nil,
 	}
 }
 
@@ -93,6 +92,7 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 		Config:   *cfg,
 		ctx:      pcCtx,
 		cancel:   pcCancel,
+		Tag:      cfg.Tag,
 	}
 
 	go pc.recvRoutine()
