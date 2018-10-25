@@ -1,14 +1,12 @@
-package packetconn
+package pktconn
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math"
 	"sync"
-
-	"unsafe"
-
 	"sync/atomic"
+	"unsafe"
 )
 
 const (

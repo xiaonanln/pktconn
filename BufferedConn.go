@@ -1,4 +1,4 @@
-package packetconn
+package pktconn
 
 import (
 	"bufio"

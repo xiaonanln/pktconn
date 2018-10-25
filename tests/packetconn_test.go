@@ -46,7 +46,7 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			if packetconn.IsTemporary(err) {
+			if pktconn.IsTemporary(err) {
 				runtime.Gosched()
 				continue
 			} else {
@@ -61,7 +61,7 @@ func (ts *testPacketServer) serve(listenAddr string, serverReady chan bool) erro
 
 func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
-		pc := packetconn.NewPacketConn(context.TODO(), conn)
+		pc := pktconn.NewPacketConn(context.TODO(), conn)
 
 		for pkt := range pc.Recv() {
 			pc.Send(pkt)
@@ -92,7 +92,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		t.Errorf("connect error: %s", err)
 	}
 
-	cfg := packetconn.DefaultConfig()
+	cfg := pktconn.DefaultConfig()
 
 	if useBufferedConn {
 		cfg.ReadBufferSize = bufferSize
@@ -102,13 +102,13 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		cfg.WriteBufferSize = 0
 	}
 
-	pconn := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
+	pconn := pktconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
 		t.Logf("Testing with payload %v", PAYLOAD_LEN)
 
-		packet := packetconn.NewPacket()
+		packet := pktconn.NewPacket()
 		for j := uint32(0); j < PAYLOAD_LEN; j++ {
 			packet.WriteOneByte(byte(rand.Intn(256)))
 		}

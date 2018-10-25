@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewPacket(t *testing.T) {
-	pkt := packetconn.NewPacket()
+	pkt := pktconn.NewPacket()
 	if pkt.GetReadPos() != 0 {
 		t.Fatalf("read pos != 0")
 	}
@@ -27,7 +27,7 @@ func TestNewPacket(t *testing.T) {
 }
 
 func TestPacketRelease(t *testing.T) {
-	pkt := packetconn.NewPacket()
+	pkt := pktconn.NewPacket()
 	pkt.WriteBytes(make([]byte, 10))
 	pkt.WriteBytes(make([]byte, 100))
 	pkt.WriteBytes(make([]byte, 1000))
@@ -37,7 +37,7 @@ func TestPacketRelease(t *testing.T) {
 }
 
 func TestPacketGeneral(t *testing.T) {
-	pkt := packetconn.NewPacket()
+	pkt := pktconn.NewPacket()
 	pkt.WriteUint16(0xABCD)
 	if !pkt.HasUnreadPayload() {
 		t.Fatalf("HasUnreadPayload error")
@@ -84,30 +84,30 @@ func TestPacketGeneral(t *testing.T) {
 }
 
 func TestPacketWriteMaxPayloadLen(t *testing.T) {
-	pkt := packetconn.NewPacket()
-	pkt.WriteBytes(make([]byte, packetconn.MaxPayloadLength))
+	pkt := pktconn.NewPacket()
+	pkt.WriteBytes(make([]byte, pktconn.MaxPayloadLength))
 }
 
 func TestPacketWritePayloadTooLarge1(t *testing.T) {
 	defer func() {
 		err := recover()
-		if err != packetconn.ErrPayloadTooLarge {
+		if err != pktconn.ErrPayloadTooLarge {
 			panic("wrong err")
 		}
 	}()
-	pkt := packetconn.NewPacket()
-	pkt.WriteBytes(make([]byte, packetconn.MaxPayloadLength+1))
+	pkt := pktconn.NewPacket()
+	pkt.WriteBytes(make([]byte, pktconn.MaxPayloadLength+1))
 }
 
 func TestPacketWritePayloadTooLarge2(t *testing.T) {
 	defer func() {
 		err := recover()
-		if err != packetconn.ErrPayloadTooLarge {
+		if err != pktconn.ErrPayloadTooLarge {
 			panic("wrong err")
 		}
 	}()
-	pkt := packetconn.NewPacket()
-	pkt.WriteBytes(make([]byte, packetconn.MaxPayloadLength/2))
-	pkt.WriteBytes(make([]byte, packetconn.MaxPayloadLength/2))
-	pkt.WriteBytes(make([]byte, packetconn.MaxPayloadLength/2))
+	pkt := pktconn.NewPacket()
+	pkt.WriteBytes(make([]byte, pktconn.MaxPayloadLength/2))
+	pkt.WriteBytes(make([]byte, pktconn.MaxPayloadLength/2))
+	pkt.WriteBytes(make([]byte, pktconn.MaxPayloadLength/2))
 }

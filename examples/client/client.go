@@ -14,10 +14,10 @@ func main() {
 		panic(err)
 	}
 
-	pc := packetconn.NewPacketConn(context.TODO(), conn)
+	pc := pktconn.NewPacketConn(context.TODO(), conn)
 	defer pc.Close()
 
-	packet := packetconn.NewPacket()
+	packet := pktconn.NewPacket()
 	payload := make([]byte, 1024)
 	packet.WriteBytes(payload)
 
