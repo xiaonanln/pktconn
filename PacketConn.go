@@ -28,7 +28,6 @@ type Config struct {
 	CrcChecksum     bool          `json:"crc_checksum"`
 	ReadBufferSize  int           `json:"read_buffer_size"`
 	WriteBufferSize int           `json:"write_buffer_size"`
-	NotifyRecvChan  chan *Packet
 	Tag             interface{}
 }
 
@@ -39,7 +38,6 @@ func DefaultConfig() *Config {
 		CrcChecksum:     false,
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
-		NotifyRecvChan:  nil,
 		Tag:             nil,
 	}
 }
@@ -53,7 +51,6 @@ type PacketConn struct {
 	conn               net.Conn
 	pendingPackets     []*Packet
 	pendingPacketsLock sync.Mutex
-	recvChan           chan *Packet
 	cancel             context.CancelFunc
 	err                error
 	once               uint32
@@ -81,21 +78,14 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 
 	pcCtx, pcCancel := context.WithCancel(ctx)
 
-	recvChan := cfg.NotifyRecvChan
-	if recvChan == nil {
-		recvChan = make(chan *Packet, cfg.RecvChanSize)
-	}
-
 	pc := &PacketConn{
-		conn:     conn,
-		recvChan: recvChan,
-		Config:   *cfg,
-		ctx:      pcCtx,
-		cancel:   pcCancel,
-		Tag:      cfg.Tag,
+		conn:   conn,
+		Config: *cfg,
+		ctx:    pcCtx,
+		cancel: pcCancel,
+		Tag:    cfg.Tag,
 	}
 
-	go pc.recvRoutine()
 	go pc.flushRoutine(cfg.FlushInterval)
 	return pc
 }
@@ -141,9 +131,11 @@ loop:
 	}
 }
 
-func (pc *PacketConn) recvRoutine() {
+func (pc *PacketConn) recvRoutine(recvChan chan *Packet, autoCloseChan bool) {
+	if autoCloseChan {
+		defer close(recvChan)
+	}
 	defer pc.Close()
-	recvChan := pc.recvChan
 
 	for {
 		packet, err := pc.recv()
@@ -271,8 +263,9 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	return packet, nil
 }
 
-func (pc *PacketConn) Recv() <-chan *Packet {
-	return pc.recvChan
+func (pc *PacketConn) Recv(recvChan chan *Packet, autoCloseChan bool) <-chan *Packet {
+	go pc.recvRoutine(recvChan, autoCloseChan)
+	return recvChan
 }
 
 // Close the connection
@@ -285,9 +278,6 @@ func (pc *PacketConn) closeWithError(err error) error {
 		// close exactly once
 		pc.err = err
 		err := pc.conn.Close()
-		if pc.recvChan != pc.Config.NotifyRecvChan {
-			close(pc.recvChan)
-		}
 		pc.cancel()
 		return err
 	} else {

@@ -22,6 +22,7 @@ func main() {
 	packet.WriteBytes(payload)
 
 	pc.Send(packet)
-	recvPacket := <-pc.Recv()
+	recvChan := make(chan *pktconn.Packet, 100)
+	recvPacket := <-pc.Recv(recvChan, true)
 	fmt.Printf("recv packet: %d\n", recvPacket.GetPayloadLen())
 }

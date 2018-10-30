@@ -27,7 +27,8 @@ func main() {
 			pc := pktconn.NewPacketConn(context.TODO(), conn)
 			fmt.Printf("client connected: %s\n", pc.RemoteAddr())
 
-			for pkt := range pc.Recv() {
+			recvCh := make(chan *pktconn.Packet, 100)
+			for pkt := range pc.Recv(recvCh, true) {
 				fmt.Printf("recv packet: %d\n", pkt.GetPayloadLen())
 				pc.Send(pkt) // send packet back to the client
 				pkt.Release()

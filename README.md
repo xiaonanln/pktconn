@@ -19,6 +19,7 @@
 ## 示例
 
 ### 服务端示例
+
 ```go 
 package main
 
@@ -46,10 +47,11 @@ func main() {
 		}
 
 		go func() {
-			pc := packetconn.NewPacketConn(context.TODO(), conn)
+			pc := pktconn.NewPacketConn(context.TODO(), conn)
 			fmt.Printf("client connected: %s\n", pc.RemoteAddr())
 
-			for pkt := range pc.Recv() {
+			recvCh := make(chan *pktconn.Packet, 100)
+			for pkt := range pc.Recv(recvCh, true) {
 				fmt.Printf("recv packet: %d\n", pkt.GetPayloadLen())
 				pc.Send(pkt) // send packet back to the client
 				pkt.Release()
@@ -81,15 +83,17 @@ func main() {
 		panic(err)
 	}
 
-	pc := packetconn.NewPacketConn(context.TODO(), conn)
+	pc := pktconn.NewPacketConn(context.TODO(), conn)
 	defer pc.Close()
 
-	packet := packetconn.NewPacket()
+	packet := pktconn.NewPacket()
 	payload := make([]byte, 1024)
 	packet.WriteBytes(payload)
 
 	pc.Send(packet)
-	recvPacket := <-pc.Recv()
+	recvChan := make(chan *pktconn.Packet, 100)
+	recvPacket := <-pc.Recv(recvChan, true)
 	fmt.Printf("recv packet: %d\n", recvPacket.GetPayloadLen())
 }
+
 ```

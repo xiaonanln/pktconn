@@ -63,7 +63,7 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
 		pc := pktconn.NewPacketConn(context.TODO(), conn)
 
-		for pkt := range pc.Recv() {
+		for pkt := range pc.Recv(make(chan *pktconn.Packet, 100), true) {
 			pc.Send(pkt)
 			pkt.Release()
 			atomic.AddUint64(&ts.handlePacketCount, 1)
@@ -103,6 +103,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 	}
 
 	pconn := pktconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
+	recvChan := pconn.Recv(make(chan *pktconn.Packet, 10), true)
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
@@ -116,7 +117,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 			t.Errorf("payload should be %d, but is %d", PAYLOAD_LEN, packet.GetPayloadLen())
 		}
 		pconn.Send(packet)
-		if recvPacket, ok := <-pconn.Recv(); ok {
+		if recvPacket, ok := <-recvChan; ok {
 			if packet.GetPayloadLen() != recvPacket.GetPayloadLen() {
 				t.Errorf("send packet len %d, but recv len %d", packet.GetPayloadLen(), recvPacket.GetPayloadLen())
 			}
