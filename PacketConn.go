@@ -14,8 +14,7 @@ import (
 const (
 	MaxPayloadLength       = 32 * 1024 * 1024
 	defaultRecvChanSize    = 100
-	defaultFlushDelay      = time.Millisecond * 1
-	defaultMaxFlushDelay   = time.Millisecond * 100
+	defaultFlushInterval   = time.Millisecond * 10
 	defaultReadBufferSize  = 8192
 	defaultWriteBufferSize = 8192
 
@@ -25,8 +24,7 @@ const (
 
 type Config struct {
 	RecvChanSize    int           `json:"recv_chan_size"`
-	FlushDelay      time.Duration `json:"flush_delay"`
-	MaxFlushDelay   time.Duration `json:"max_flush_delay"`
+	FlushInterval   time.Duration `json:"flush_interval"`
 	CrcChecksum     bool          `json:"crc_checksum"`
 	ReadBufferSize  int           `json:"read_buffer_size"`
 	WriteBufferSize int           `json:"write_buffer_size"`
@@ -36,8 +34,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		RecvChanSize:    defaultRecvChanSize,
-		FlushDelay:      defaultFlushDelay,
-		MaxFlushDelay:   defaultMaxFlushDelay,
+		FlushInterval:   defaultFlushInterval,
 		CrcChecksum:     false,
 		ReadBufferSize:  defaultReadBufferSize,
 		WriteBufferSize: defaultWriteBufferSize,
@@ -50,15 +47,13 @@ type PacketConn struct {
 	Tag    interface{}
 	Config Config
 
-	ctx                     context.Context
-	conn                    net.Conn
-	pendingPackets          []*Packet
-	pendingPacketsStartTime int64
-	pendingPacketsStopTime  int64
-	pendingPacketsLock      sync.Mutex
-	cancel                  context.CancelFunc
-	err                     error
-	once                    uint32
+	ctx                context.Context
+	conn               net.Conn
+	pendingPackets     []*Packet
+	pendingPacketsLock sync.Mutex
+	cancel             context.CancelFunc
+	err                error
+	once               uint32
 }
 
 // NewPacketConn creates a packet connection based on network connection
@@ -91,17 +86,13 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 		Tag:    cfg.Tag,
 	}
 
-	go pc.flushRoutine()
+	go pc.flushRoutine(cfg.FlushInterval)
 	return pc
 }
 
 func validateConfig(cfg *Config) {
-	if cfg.FlushDelay < 0 {
+	if cfg.FlushInterval < 0 {
 		panic(fmt.Errorf("negative flush interval"))
-	}
-
-	if cfg.MaxFlushDelay < cfg.FlushDelay {
-		panic(fmt.Errorf("please set max_flush_delay > flush_delay"))
 	}
 
 	if cfg.RecvChanSize < 0 {
@@ -117,23 +108,18 @@ func validateConfig(cfg *Config) {
 	}
 }
 
-func (pc *PacketConn) flushRoutine() {
+func (pc *PacketConn) flushRoutine(interval time.Duration) {
 	defer pc.Close()
 
-	tickerInterval := pc.Config.FlushDelay / 3
-	if tickerInterval < time.Millisecond {
-		tickerInterval = time.Millisecond
-	}
-
-	ticker := time.NewTicker(tickerInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	ctxDone := pc.ctx.Done()
 loop:
 	for {
 		select {
-		case now := <-ticker.C:
-			err := pc.flush(now.UnixNano())
+		case <-ticker.C:
+			err := pc.flush()
 			if err != nil {
 				pc.closeWithError(err)
 				break loop
@@ -171,32 +157,19 @@ func (pc *PacketConn) Send(packet *Packet) error {
 	packet.addRefCount(1)
 	pc.pendingPacketsLock.Lock()
 	pc.pendingPackets = append(pc.pendingPackets, packet)
-	now := time.Now().UnixNano()
-	if len(pc.pendingPackets) == 1 {
-		pc.pendingPacketsStartTime = now
-	}
-	pc.pendingPacketsStopTime = now
 	pc.pendingPacketsLock.Unlock()
 	return nil
 }
 
 // Flush connection writes
-func (pc *PacketConn) flush(now int64) (err error) {
+func (pc *PacketConn) flush() (err error) {
 	pc.pendingPacketsLock.Lock()
 	if len(pc.pendingPackets) == 0 { // no packets to send, common to happen, so handle efficiently
 		pc.pendingPacketsLock.Unlock()
 		return
 	}
-
-	if now-pc.pendingPacketsStopTime < int64(pc.Config.FlushDelay/time.Nanosecond) && now-pc.pendingPacketsStartTime < int64(pc.Config.MaxFlushDelay/time.Nanosecond) {
-		pc.pendingPacketsLock.Unlock()
-		return
-	}
-
 	packets := make([]*Packet, 0, len(pc.pendingPackets))
 	packets, pc.pendingPackets = pc.pendingPackets, packets
-	pc.pendingPacketsStartTime, pc.pendingPacketsStopTime = 0, 0
-
 	pc.pendingPacketsLock.Unlock()
 
 	// flush should only be called in one goroutine
