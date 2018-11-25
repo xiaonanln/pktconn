@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	packetconn "github.com/xiaonanln/pktconn"
+	"github.com/xiaonanln/pktconn"
 )
 
 const (
@@ -61,28 +61,29 @@ restart:
 		goto restart
 	}
 
-	cfg := packetconn.DefaultConfig()
+	cfg := pktconn.DefaultConfig()
 	cfg.CrcChecksum = false
 	cfg.ReadBufferSize = 8192
 	cfg.WriteBufferSize = 8192
 	cfg.RecvChanSize = 10
-	pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
+	pc := pktconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 	defer pc.Close()
 
 	allConnected.Done()
 
 	payload := make([]byte, perfPayloadSizeMin+rand.Intn(perfPayloadSizeMax-perfPayloadSizeMin+1))
-	packet := packetconn.NewPacket()
+	packet := pktconn.NewPacket()
 	packet.WriteBytes(payload)
 
 	<-startSendRecv
 
+	recvCh := pc.Recv(make(chan *pktconn.Packet, 100), true)
 	for {
 		pc.Send(packet)
-		if _, ok := <-pc.Recv(); !ok {
+		if _, ok := <-recvCh; !ok {
 			break
 		}
-		if _, ok := <-pc.Recv(); !ok {
+		if _, ok := <-recvCh; !ok {
 			break
 		}
 	}
