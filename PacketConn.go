@@ -125,6 +125,11 @@ func (pc *PacketConn) flushRoutine() {
 		tickerInterval = time.Millisecond
 	}
 
+	waitPendingPacketsCntLimit := int32(pc.Config.MaxFlushDelay / tickerInterval)
+	if waitPendingPacketsCntLimit < 1 {
+		waitPendingPacketsCntLimit = 1
+	}
+
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 
@@ -133,7 +138,7 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
-			err := pc.flush()
+			err := pc.flush(waitPendingPacketsCntLimit)
 			if err != nil {
 				pc.closeWithError(err)
 				break loop
@@ -177,7 +182,7 @@ func (pc *PacketConn) Send(packet *Packet) error {
 }
 
 // Flush connection writes
-func (pc *PacketConn) flush() (err error) {
+func (pc *PacketConn) flush(waitPendingPacketsCntLimit int32) (err error) {
 	pc.pendingPacketsLock.Lock()
 	gotPacketFlag := pc.gotPacketFlag
 	pc.gotPacketFlag = false
@@ -189,7 +194,7 @@ func (pc *PacketConn) flush() (err error) {
 
 	// found pending packets to send
 	pc.waitPendingPacketsCnt += 1
-	if pc.waitPendingPacketsCnt < 100 && gotPacketFlag {
+	if pc.waitPendingPacketsCnt < waitPendingPacketsCntLimit && gotPacketFlag {
 		pc.pendingPacketsLock.Unlock()
 		return
 	}
