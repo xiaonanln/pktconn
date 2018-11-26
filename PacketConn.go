@@ -50,15 +50,15 @@ type PacketConn struct {
 	Tag    interface{}
 	Config Config
 
-	ctx                     context.Context
-	conn                    net.Conn
-	pendingPackets          []*Packet
-	pendingPacketsStartTime int64
-	pendingPacketsStopTime  int64
-	pendingPacketsLock      sync.Mutex
-	cancel                  context.CancelFunc
-	err                     error
-	once                    uint32
+	ctx                   context.Context
+	conn                  net.Conn
+	pendingPacketsLock    sync.Mutex
+	pendingPackets        []*Packet
+	waitPendingPacketsCnt int32
+	gotPacketFlag         bool
+	cancel                context.CancelFunc
+	err                   error
+	once                  uint32
 }
 
 // NewPacketConn creates a packet connection based on network connection
@@ -120,7 +120,7 @@ func validateConfig(cfg *Config) {
 func (pc *PacketConn) flushRoutine() {
 	defer pc.Close()
 
-	tickerInterval := pc.Config.FlushDelay / 3
+	tickerInterval := pc.Config.FlushDelay
 	if tickerInterval < time.Millisecond {
 		tickerInterval = time.Millisecond
 	}
@@ -132,8 +132,8 @@ func (pc *PacketConn) flushRoutine() {
 loop:
 	for {
 		select {
-		case now := <-ticker.C:
-			err := pc.flush(now.UnixNano())
+		case <-ticker.C:
+			err := pc.flush()
 			if err != nil {
 				pc.closeWithError(err)
 				break loop
@@ -171,32 +171,32 @@ func (pc *PacketConn) Send(packet *Packet) error {
 	packet.addRefCount(1)
 	pc.pendingPacketsLock.Lock()
 	pc.pendingPackets = append(pc.pendingPackets, packet)
-	now := time.Now().UnixNano()
-	if len(pc.pendingPackets) == 1 {
-		pc.pendingPacketsStartTime = now
-	}
-	pc.pendingPacketsStopTime = now
+	pc.gotPacketFlag = true
 	pc.pendingPacketsLock.Unlock()
 	return nil
 }
 
 // Flush connection writes
-func (pc *PacketConn) flush(now int64) (err error) {
+func (pc *PacketConn) flush() (err error) {
 	pc.pendingPacketsLock.Lock()
+	gotPacketFlag := pc.gotPacketFlag
+	pc.gotPacketFlag = false
+
 	if len(pc.pendingPackets) == 0 { // no packets to send, common to happen, so handle efficiently
 		pc.pendingPacketsLock.Unlock()
 		return
 	}
 
-	if now-pc.pendingPacketsStopTime < int64(pc.Config.FlushDelay/time.Nanosecond) && now-pc.pendingPacketsStartTime < int64(pc.Config.MaxFlushDelay/time.Nanosecond) {
+	// found pending packets to send
+	pc.waitPendingPacketsCnt += 1
+	if pc.waitPendingPacketsCnt < 100 && gotPacketFlag {
 		pc.pendingPacketsLock.Unlock()
 		return
 	}
 
 	packets := make([]*Packet, 0, len(pc.pendingPackets))
 	packets, pc.pendingPackets = pc.pendingPackets, packets
-	pc.pendingPacketsStartTime, pc.pendingPacketsStopTime = 0, 0
-
+	pc.waitPendingPacketsCnt = 0
 	pc.pendingPacketsLock.Unlock()
 
 	// flush should only be called in one goroutine
