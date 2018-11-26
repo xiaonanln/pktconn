@@ -6,11 +6,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"runtime"
 	"sync/atomic"
 	"time"
-
-	_ "net/http/pprof"
 
 	packetconn "github.com/xiaonanln/pktconn"
 )
@@ -65,7 +64,8 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		log.Printf("%s connected", conn.RemoteAddr())
 		go func() {
 			cfg := packetconn.DefaultConfig()
-			cfg.FlushDelay = time.Millisecond * 1
+			cfg.FlushDelay = time.Millisecond * 100
+			cfg.MaxFlushDelay = time.Millisecond * 100
 			cfg.CrcChecksum = false
 			cfg.WriteBufferSize = 8192 * 2
 			cfg.ReadBufferSize = 8192 * 2
