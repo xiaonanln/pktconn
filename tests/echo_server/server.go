@@ -65,7 +65,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		go func() {
 			cfg := packetconn.DefaultConfig()
 			cfg.FlushDelay = time.Millisecond * 1
-			cfg.MaxFlushDelay = time.Millisecond * 100
+			cfg.MaxFlushDelay = time.Millisecond * 10
 			cfg.CrcChecksum = false
 			cfg.WriteBufferSize = 8192 * 2
 			cfg.ReadBufferSize = 8192 * 2
