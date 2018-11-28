@@ -64,7 +64,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 		log.Printf("%s connected", conn.RemoteAddr())
 		go func() {
 			cfg := packetconn.DefaultConfig()
-			cfg.FlushDelay = time.Millisecond * 50
+			cfg.FlushDelay = time.Millisecond * 1
 			cfg.MaxFlushDelay = time.Millisecond * 100
 			cfg.CrcChecksum = false
 			cfg.WriteBufferSize = 8192 * 2

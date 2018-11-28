@@ -67,7 +67,7 @@ restart:
 	cfg.WriteBufferSize = 8192
 	cfg.RecvChanSize = 10
 	cfg.FlushDelay = time.Millisecond * 1
-	cfg.MaxFlushDelay = time.Millisecond * 100
+	cfg.MaxFlushDelay = time.Millisecond * 10
 	pc := pktconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 	defer pc.Close()
 
