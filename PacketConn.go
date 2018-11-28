@@ -6,10 +6,9 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/xiaonanln/go-xnsyncutil/xnsyncutil"
 )
 
 const (
@@ -53,7 +52,7 @@ type PacketConn struct {
 
 	ctx                   context.Context
 	conn                  net.Conn
-	pendingPacketsLock    xnsyncutil.SpinLock
+	pendingPacketsLock    sync.Mutex
 	pendingPackets        []*Packet
 	waitPendingPacketsCnt int32
 	gotPacketFlag         bool
