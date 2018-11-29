@@ -17,7 +17,7 @@ const (
 	defaultMaxFlushDelay   = time.Millisecond * 10
 	defaultReadBufferSize  = 8192
 	defaultWriteBufferSize = 8192
-	sendChanSize           = 100
+	sendChanSize           = 1000
 
 	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
 	prePayloadSize    = payloadLengthSize
