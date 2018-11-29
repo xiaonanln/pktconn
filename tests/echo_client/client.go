@@ -15,7 +15,7 @@ import (
 
 const (
 	port               = 14572
-	perfClientCount    = 7000
+	perfClientCount    = 1000
 	perfPayloadSizeMin = 0
 	perfPayloadSizeMax = 2048
 )
