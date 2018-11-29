@@ -17,7 +17,7 @@ const (
 	defaultMaxFlushDelay   = time.Millisecond * 10
 	defaultReadBufferSize  = 8192
 	defaultWriteBufferSize = 8192
-	sendChanSize           = 1000
+	sendChanSize           = 100
 
 	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
 	prePayloadSize    = payloadLengthSize
@@ -145,9 +145,9 @@ loop:
 			if len(packets) > 0 {
 				if now.Sub(lastPacketArriveTime) >= pc.Config.FlushDelay || now.Sub(firstPacketArriveTime) >= pc.Config.MaxFlushDelay {
 					// time to send the packet
+					uniformTicker.RemoveChan(tickerChan)
 					err := pc.flush(packets)
 					packets = nil
-					uniformTicker.RemoveChan(tickerChan)
 					if err != nil {
 						pc.closeWithError(err)
 						break loop
