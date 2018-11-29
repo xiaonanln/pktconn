@@ -6,6 +6,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -14,10 +15,9 @@ const (
 	MaxPayloadLength       = 32 * 1024 * 1024
 	defaultRecvChanSize    = 100
 	defaultFlushDelay      = time.Millisecond * 1
-	defaultMaxFlushDelay   = time.Millisecond * 10
+	defaultMaxFlushDelay   = time.Millisecond * 100
 	defaultReadBufferSize  = 8192
 	defaultWriteBufferSize = 8192
-	sendChanSize           = 100
 
 	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
 	prePayloadSize    = payloadLengthSize
@@ -52,7 +52,8 @@ type PacketConn struct {
 
 	ctx                   context.Context
 	conn                  net.Conn
-	sendChan              chan *Packet
+	pendingPacketsLock    sync.Mutex
+	pendingPackets        []*Packet
 	waitPendingPacketsCnt int32
 	gotPacketFlag         bool
 	cancel                context.CancelFunc
@@ -83,12 +84,11 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 	pcCtx, pcCancel := context.WithCancel(ctx)
 
 	pc := &PacketConn{
-		conn:     conn,
-		Config:   *cfg,
-		ctx:      pcCtx,
-		cancel:   pcCancel,
-		Tag:      cfg.Tag,
-		sendChan: make(chan *Packet, sendChanSize),
+		conn:   conn,
+		Config: *cfg,
+		ctx:    pcCtx,
+		cancel: pcCancel,
+		Tag:    cfg.Tag,
 	}
 
 	go pc.flushRoutine()
@@ -134,29 +134,14 @@ func (pc *PacketConn) flushRoutine() {
 	defer ticker.Stop()
 
 	ctxDone := pc.ctx.Done()
-	var firstPacketArriveTime, lastPacketArriveTime time.Time
-	var packets []*Packet
 loop:
 	for {
 		select {
-		case packet := <-pc.sendChan:
-			now := time.Now()
-			packets = append(packets, packet)
-			lastPacketArriveTime = now
-			if len(packets) == 1 {
-				firstPacketArriveTime = now
-			}
-		case now := <-ticker.C:
-			if len(packets) > 0 {
-				if now.Sub(lastPacketArriveTime) >= pc.Config.FlushDelay || now.Sub(firstPacketArriveTime) >= pc.Config.MaxFlushDelay {
-					// time to send the packet
-					err := pc.flush(packets)
-					packets = nil
-					if err != nil {
-						pc.closeWithError(err)
-						break loop
-					}
-				}
+		case <-ticker.C:
+			err := pc.flush(waitPendingPacketsCntLimit)
+			if err != nil {
+				pc.closeWithError(err)
+				break loop
 			}
 		case <-ctxDone:
 			pc.closeWithError(pc.ctx.Err())
@@ -189,12 +174,38 @@ func (pc *PacketConn) Send(packet *Packet) error {
 	}
 
 	packet.addRefCount(1)
-	pc.sendChan <- packet
+	pc.pendingPacketsLock.Lock()
+	pc.pendingPackets = append(pc.pendingPackets, packet)
+	pc.gotPacketFlag = true
+	pc.pendingPacketsLock.Unlock()
 	return nil
 }
 
 // Flush connection writes
-func (pc *PacketConn) flush(packets []*Packet) (err error) {
+func (pc *PacketConn) flush(waitPendingPacketsCntLimit int32) (err error) {
+	pc.pendingPacketsLock.Lock()
+	gotPacketFlag := pc.gotPacketFlag
+	pc.gotPacketFlag = false
+
+	if len(pc.pendingPackets) == 0 { // no packets to send, common to happen, so handle efficiently
+		pc.pendingPacketsLock.Unlock()
+		return
+	}
+
+	// found pending packets to send
+	pc.waitPendingPacketsCnt += 1
+	if pc.waitPendingPacketsCnt < waitPendingPacketsCntLimit && gotPacketFlag {
+		pc.pendingPacketsLock.Unlock()
+		return
+	}
+
+	packets := make([]*Packet, 0, len(pc.pendingPackets))
+	packets, pc.pendingPackets = pc.pendingPackets, packets
+	pc.waitPendingPacketsCnt = 0
+	pc.pendingPacketsLock.Unlock()
+
+	// flush should only be called in one goroutine
+
 	if len(packets) == 1 {
 		// only 1 packet to send, just send it directly, no need to use send buffer
 		packet := packets[0]
