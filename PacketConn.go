@@ -23,6 +23,10 @@ const (
 	prePayloadSize    = payloadLengthSize
 )
 
+var (
+	uniformTicker = NewTicker(time.Millisecond)
+)
+
 type Config struct {
 	RecvChanSize    int           `json:"recv_chan_size"`
 	FlushDelay      time.Duration `json:"flush_delay"`
@@ -125,13 +129,7 @@ func (pc *PacketConn) flushRoutine() {
 		tickerInterval = time.Millisecond
 	}
 
-	waitPendingPacketsCntLimit := int32(pc.Config.MaxFlushDelay / tickerInterval)
-	if waitPendingPacketsCntLimit < 1 {
-		waitPendingPacketsCntLimit = 1
-	}
-
-	ticker := time.NewTicker(tickerInterval)
-	defer ticker.Stop()
+	tickerChan := make(chan time.Time, 1)
 
 	ctxDone := pc.ctx.Done()
 	var firstPacketArriveTime, lastPacketArriveTime time.Time
@@ -145,13 +143,15 @@ loop:
 			lastPacketArriveTime = now
 			if len(packets) == 1 {
 				firstPacketArriveTime = now
+				uniformTicker.AddChan(tickerChan)
 			}
-		case now := <-ticker.C:
+		case now := <-tickerChan:
 			if len(packets) > 0 {
 				if now.Sub(lastPacketArriveTime) >= pc.Config.FlushDelay || now.Sub(firstPacketArriveTime) >= pc.Config.MaxFlushDelay {
 					// time to send the packet
 					err := pc.flush(packets)
 					packets = nil
+					uniformTicker.RemoveChan(tickerChan)
 					if err != nil {
 						pc.closeWithError(err)
 						break loop
