@@ -134,7 +134,7 @@ loop:
 	for {
 		select {
 		case packet := <-pc.sendChan:
-			now := time.Now()
+			now := uniformTicker.Now()
 			packets = append(packets, packet)
 			lastPacketArriveTime = now
 			if len(packets) == 1 {
@@ -143,7 +143,7 @@ loop:
 			}
 		case now := <-tickerChan:
 			if len(packets) > 0 {
-				if now.Sub(lastPacketArriveTime) >= pc.Config.FlushDelay || now.Sub(firstPacketArriveTime) >= pc.Config.MaxFlushDelay {
+				if now.Sub(lastPacketArriveTime) >= pc.Config.FlushDelay+time.Millisecond || now.Sub(firstPacketArriveTime) >= pc.Config.MaxFlushDelay {
 					// time to send the packet
 					uniformTicker.RemoveChan(tickerChan)
 					err := pc.flush(packets)
