@@ -124,12 +124,8 @@ func validateConfig(cfg *Config) {
 func (pc *PacketConn) flushRoutine() {
 	defer pc.Close()
 
-	tickerInterval := pc.Config.FlushDelay
-	if tickerInterval < time.Millisecond {
-		tickerInterval = time.Millisecond
-	}
-
 	tickerChan := make(chan time.Time, 1)
+	defer uniformTicker.RemoveChan(tickerChan)
 
 	ctxDone := pc.ctx.Done()
 	var firstPacketArriveTime, lastPacketArriveTime time.Time
