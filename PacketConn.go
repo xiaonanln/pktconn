@@ -3,6 +3,7 @@ package pktconn
 import (
 	"context"
 	"fmt"
+	"github.com/xiaonanln/tickchan"
 	"hash/crc32"
 	"io"
 	"net"
@@ -24,7 +25,7 @@ const (
 )
 
 var (
-	uniformTicker = NewTicker(time.Millisecond)
+	uniformTicker = tickchan.NewChanTicker(time.Millisecond)
 )
 
 type Config struct {
@@ -125,7 +126,7 @@ func (pc *PacketConn) flushRoutine() {
 	defer pc.Close()
 
 	tickerChan := make(chan time.Time, 1)
-	defer uniformTicker.RemoveChan(tickerChan)
+	defer uniformTicker.Remove(tickerChan)
 
 	ctxDone := pc.ctx.Done()
 	var firstPacketArriveTime, lastPacketArriveTime time.Time
@@ -134,18 +135,18 @@ loop:
 	for {
 		select {
 		case packet := <-pc.sendChan:
-			now := uniformTicker.Now()
+			now := uniformTicker.LastTickTime()
 			packets = append(packets, packet)
 			lastPacketArriveTime = now
 			if len(packets) == 1 {
 				firstPacketArriveTime = now
-				uniformTicker.AddChan(tickerChan)
+				uniformTicker.Add(tickerChan)
 			}
 		case now := <-tickerChan:
 			if len(packets) > 0 {
 				if now.Sub(lastPacketArriveTime) >= pc.Config.FlushDelay+time.Millisecond || now.Sub(firstPacketArriveTime) >= pc.Config.MaxFlushDelay {
 					// time to send the packet
-					uniformTicker.RemoveChan(tickerChan)
+					uniformTicker.Remove(tickerChan)
 					err := pc.flush(packets)
 					packets = nil
 					if err != nil {
