@@ -9,7 +9,7 @@
 1. 让接口尽可能简单！
 
 ## 性能测试
-[tests/echo_server](https://github.com/xiaonanln/pktconn/blob/master/examples/server/server.go)目前可以做到单核每秒接收并发回**2.8万**个0~2048字节的数据包
+[tests/echo_server](https://github.com/xiaonanln/pktconn/blob/master/examples/server/server.go)目前可以做到单核每秒接收并发回**3.5万**个0~2048字节的数据包
 * 测试环境
     * 操作系统：Debian 8
     * CPU：Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz
