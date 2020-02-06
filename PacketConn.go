@@ -162,14 +162,12 @@ loop:
 	}
 }
 
-func (pc *PacketConn) recvRoutine(recvChan chan *Packet, autoCloseChan bool) {
-	if autoCloseChan {
-		defer close(recvChan)
-	}
+func (pc *PacketConn) Recv(recvChan chan *Packet) (err error) {
 	defer pc.Close()
 
+	var packet *Packet
 	for {
-		packet, err := pc.recv()
+		packet, err = pc.recv()
 		if err != nil {
 			pc.closeWithError(err)
 			break
@@ -177,6 +175,8 @@ func (pc *PacketConn) recvRoutine(recvChan chan *Packet, autoCloseChan bool) {
 
 		recvChan <- packet
 	}
+
+	return
 }
 
 // Send send packets to remote
@@ -279,11 +279,6 @@ func (pc *PacketConn) recv() (*Packet, error) {
 	}
 
 	return packet, nil
-}
-
-func (pc *PacketConn) Recv(recvChan chan *Packet, autoCloseChan bool) <-chan *Packet {
-	go pc.recvRoutine(recvChan, autoCloseChan)
-	return recvChan
 }
 
 // Close the connection

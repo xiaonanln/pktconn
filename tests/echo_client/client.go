@@ -79,7 +79,12 @@ restart:
 
 	<-startSendRecv
 
-	recvCh := pc.Recv(make(chan *pktconn.Packet, 100), true)
+	recvCh := make(chan *pktconn.Packet, 100)
+	go func() {
+		defer close(recvCh)
+		pc.Recv(recvCh)
+	}()
+
 	for {
 		pc.Send(packet)
 		if _, ok := <-recvCh; !ok {

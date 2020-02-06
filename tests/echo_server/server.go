@@ -71,8 +71,11 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 			cfg.ReadBufferSize = 8192 * 2
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 			recvCh := make(chan *packetconn.Packet, 10000)
-
-			for pkt := range pc.Recv(recvCh, true) {
+			go func() {
+				defer close(recvCh)
+				pc.Recv(recvCh)
+			}()
+			for pkt := range recvCh {
 				pc.Send(pkt)
 				pc.Send(pkt)
 				pkt.Release()

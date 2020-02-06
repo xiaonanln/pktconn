@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -63,7 +64,13 @@ func (ts *testPacketServer) serveTCPConn(conn net.Conn) {
 	go func() {
 		pc := pktconn.NewPacketConn(context.TODO(), conn)
 
-		for pkt := range pc.Recv(make(chan *pktconn.Packet, 100), true) {
+		recvCh := make(chan *pktconn.Packet, 100)
+		go func() {
+			defer close(recvCh)
+			pc.Recv(recvCh)
+		}()
+
+		for pkt := range recvCh {
 			pc.Send(pkt)
 			pkt.Release()
 			atomic.AddUint64(&ts.handlePacketCount, 1)
@@ -101,9 +108,20 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 		cfg.ReadBufferSize = 0
 		cfg.WriteBufferSize = 0
 	}
+	var wait sync.WaitGroup
+	defer wait.Wait()
 
-	pconn := pktconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
-	recvChan := pconn.Recv(make(chan *pktconn.Packet, 10), true)
+	pconn := pktconn.NewPacketConnWithConfig(context.Background(), conn, cfg)
+	defer pconn.Close()
+
+	recvChan := make(chan *pktconn.Packet, 10)
+	go func() {
+		wait.Add(1)
+		defer wait.Done()
+		defer close(recvChan)
+		err := pconn.Recv(recvChan)
+		t.Logf("PacketConn closed: %+v", err)
+	}()
 
 	for i := 0; i < 10; i++ {
 		var PAYLOAD_LEN uint32 = uint32(rand.Intn(4096 + 1))
@@ -130,4 +148,5 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 			t.Fatalf("can not recv packet: %v", pconn.Err())
 		}
 	}
+
 }
