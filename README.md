@@ -50,8 +50,7 @@ func main() {
 			pc := pktconn.NewPacketConn(context.TODO(), conn)
 			fmt.Printf("client connected: %s\n", pc.RemoteAddr())
 
-			recvCh := make(chan *pktconn.Packet, 100)
-			for pkt := range pc.Recv(recvCh, true) {
+			for pkt := range pc.Recv() {
 				fmt.Printf("recv packet: %d\n", pkt.GetPayloadLen())
 				pc.Send(pkt) // send packet back to the client
 				pkt.Release()
@@ -61,7 +60,6 @@ func main() {
 		}()
 	}
 }
-
 ```
 
 ### 客户端示例
@@ -91,9 +89,7 @@ func main() {
 	packet.WriteBytes(payload)
 
 	pc.Send(packet)
-	recvChan := make(chan *pktconn.Packet, 100)
-	recvPacket := <-pc.Recv(recvChan, true)
+	recvPacket := <-pc.Recv()
 	fmt.Printf("recv packet: %d\n", recvPacket.GetPayloadLen())
 }
-
 ```
