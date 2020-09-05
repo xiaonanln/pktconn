@@ -30,4 +30,8 @@ jobs:
 
           ./tests/echo_server/echo_server &
           sleep 3
-          ./tests/echo_client/echo_client localhost
+          perf=$(./tests/echo_client/echo_client localhost | awk '{print $3}')
+          if [ "$perf" -lt "50000" ]; then
+            echo "Performance is too weak!"
+            false
+          fi
