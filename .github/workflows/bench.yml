@@ -31,6 +31,7 @@ jobs:
           ./tests/echo_server/echo_server &
           sleep 3
           perf=$(./tests/echo_client/echo_client localhost | awk '{print $3}')
+          echo "Handled $perf packets per second!"
           if [ "$perf" -lt "50000" ]; then
             echo "Performance is too weak!"
             false
