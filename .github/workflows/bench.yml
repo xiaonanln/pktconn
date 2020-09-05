@@ -25,6 +25,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Benchmark
         run: |
-          go run ./tests/echo_server &
+          (cd tests/echo_server && go build)
+          (cd tests/echo_client && go build)
+
+          ./tests/echo_server/echo_server &
           sleep 3
-          go run ./tests/echo_client localhost
+          ./tests/echo_client/echo_client localhost
