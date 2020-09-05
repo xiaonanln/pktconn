@@ -17,7 +17,7 @@ import (
 
 const (
 	port                     = 14572
-	perfClientCount          = 1000
+	perfClientCount          = 10
 	perfPayloadSizeMin       = 0
 	perfPayloadSizeMax       = 2048
 	perfEchoCounterPerClient = 1000
@@ -100,6 +100,5 @@ restart:
 		}
 
 		atomic.AddInt32(&totalCounter, 1)
-		println(totalCounter)
 	}
 }
