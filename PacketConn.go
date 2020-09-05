@@ -12,13 +12,11 @@ import (
 )
 
 const (
-	MaxPayloadLength       = 32 * 1024 * 1024
-	defaultRecvChanSize    = 100
-	defaultFlushDelay      = time.Millisecond * 1
-	defaultMaxFlushDelay   = time.Millisecond * 10
-	defaultReadBufferSize  = 8192
-	defaultWriteBufferSize = 8192
-	sendChanSize           = 100
+	MaxPayloadLength     = 32 * 1024 * 1024
+	defaultRecvChanSize  = 100
+	defaultFlushDelay    = time.Millisecond * 1
+	defaultMaxFlushDelay = time.Millisecond * 10
+	sendChanSize         = 100
 
 	payloadLengthSize = 4 // payloadLengthSize is the packet size field (uint32) size
 	prePayloadSize    = payloadLengthSize
@@ -29,24 +27,20 @@ var (
 )
 
 type Config struct {
-	RecvChanSize    int           `json:"recv_chan_size"`
-	FlushDelay      time.Duration `json:"flush_delay"`
-	MaxFlushDelay   time.Duration `json:"max_flush_delay"`
-	CrcChecksum     bool          `json:"crc_checksum"`
-	ReadBufferSize  int           `json:"read_buffer_size"`
-	WriteBufferSize int           `json:"write_buffer_size"`
-	Tag             interface{}
+	RecvChanSize  int           `json:"recv_chan_size"`
+	FlushDelay    time.Duration `json:"flush_delay"`
+	MaxFlushDelay time.Duration `json:"max_flush_delay"`
+	CrcChecksum   bool          `json:"crc_checksum"`
+	Tag           interface{}
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		RecvChanSize:    defaultRecvChanSize,
-		FlushDelay:      defaultFlushDelay,
-		MaxFlushDelay:   defaultMaxFlushDelay,
-		CrcChecksum:     false,
-		ReadBufferSize:  defaultReadBufferSize,
-		WriteBufferSize: defaultWriteBufferSize,
-		Tag:             nil,
+		RecvChanSize:  defaultRecvChanSize,
+		FlushDelay:    defaultFlushDelay,
+		MaxFlushDelay: defaultMaxFlushDelay,
+		CrcChecksum:   false,
+		Tag:           nil,
 	}
 }
 
@@ -81,10 +75,6 @@ func NewPacketConnWithConfig(ctx context.Context, conn net.Conn, cfg *Config) *P
 
 	validateConfig(cfg)
 
-	if cfg.ReadBufferSize > 0 || cfg.WriteBufferSize > 0 {
-		conn = newBufferedConn(conn, cfg.ReadBufferSize, cfg.WriteBufferSize)
-	}
-
 	pcCtx, pcCancel := context.WithCancel(ctx)
 
 	pc := &PacketConn{
@@ -111,14 +101,6 @@ func validateConfig(cfg *Config) {
 
 	if cfg.RecvChanSize < 0 {
 		panic(fmt.Errorf("negative recv chan size"))
-	}
-
-	if cfg.ReadBufferSize < 0 {
-		panic(fmt.Errorf("negative read buffer size"))
-	}
-
-	if cfg.WriteBufferSize < 0 {
-		panic(fmt.Errorf("negative write buffer size"))
 	}
 }
 
