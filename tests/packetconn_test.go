@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xiaonanln/netconnutil"
 	"github.com/xiaonanln/pktconn"
 )
 
@@ -102,11 +103,7 @@ func testPacketConnRS(t *testing.T, useBufferedConn bool) {
 	cfg := pktconn.DefaultConfig()
 
 	if useBufferedConn {
-		cfg.ReadBufferSize = bufferSize
-		cfg.WriteBufferSize = bufferSize
-	} else {
-		cfg.ReadBufferSize = 0
-		cfg.WriteBufferSize = 0
+		conn = netconnutil.NewBufferedConn(conn, bufferSize, bufferSize)
 	}
 	var wait sync.WaitGroup
 	defer wait.Wait()

@@ -1,0 +1,30 @@
+name: Test
+
+on: [ pull_request ]
+
+jobs:
+  cancel-previous-runs:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: rokroskar/workflow-run-cleanup-action@master
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        if: "github.ref != 'refs/heads/master'"
+
+  test:
+    name: Test (Go ${{ matrix.go }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go: [1.11, 1.14]
+        os: ["ubuntu-18.04"]
+    steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: actions/checkout@v2
+      - name: Test
+        run: |
+          go test -race -coverprofile=profile.out -covermode=atomic ./...
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v1

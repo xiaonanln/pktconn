@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/xiaonanln/netconnutil"
 	"log"
 	"net"
 	"net/http"
@@ -67,8 +68,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 			cfg.FlushDelay = time.Millisecond * 1
 			cfg.MaxFlushDelay = time.Millisecond * 10
 			cfg.CrcChecksum = false
-			cfg.WriteBufferSize = 8192 * 2
-			cfg.ReadBufferSize = 8192 * 2
+			conn = netconnutil.NewBufferedConn(conn, 8192*2, 8192*2)
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 			recvCh := make(chan *packetconn.Packet, 10000)
 			go func() {

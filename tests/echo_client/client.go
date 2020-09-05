@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/xiaonanln/netconnutil"
 	"log"
 	"math/rand"
 	"net"
@@ -61,10 +62,10 @@ restart:
 		goto restart
 	}
 
+	conn = netconnutil.NewBufferedConn(conn, 8192, 8192)
+
 	cfg := pktconn.DefaultConfig()
 	cfg.CrcChecksum = false
-	cfg.ReadBufferSize = 8192
-	cfg.WriteBufferSize = 8192
 	cfg.RecvChanSize = 10
 	cfg.FlushDelay = time.Millisecond * 1
 	cfg.MaxFlushDelay = time.Millisecond * 10
