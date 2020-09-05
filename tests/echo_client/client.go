@@ -66,7 +66,6 @@ restart:
 
 	cfg := pktconn.DefaultConfig()
 	cfg.CrcChecksum = false
-	cfg.RecvChanSize = 10
 	cfg.FlushDelay = time.Millisecond * 1
 	cfg.MaxFlushDelay = time.Millisecond * 10
 	pc := pktconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
@@ -80,11 +79,7 @@ restart:
 
 	<-startSendRecv
 
-	recvCh := make(chan *pktconn.Packet, 100)
-	go func() {
-		defer close(recvCh)
-		pc.Recv(recvCh)
-	}()
+	recvCh := pc.Recv()
 
 	for {
 		pc.Send(packet)

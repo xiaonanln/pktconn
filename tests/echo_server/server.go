@@ -70,12 +70,7 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 			cfg.CrcChecksum = false
 			conn = netconnutil.NewBufferedConn(conn, 8192*2, 8192*2)
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
-			recvCh := make(chan *packetconn.Packet, 10000)
-			go func() {
-				defer close(recvCh)
-				pc.Recv(recvCh)
-			}()
-			for pkt := range recvCh {
+			for pkt := range pc.RecvChanSize(10000) {
 				pc.Send(pkt)
 				pc.Send(pkt)
 				pkt.Release()

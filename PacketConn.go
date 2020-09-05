@@ -13,7 +13,7 @@ import (
 
 const (
 	MaxPayloadLength     = 32 * 1024 * 1024
-	defaultRecvChanSize  = 100
+	DefaultRecvChanSize  = 100
 	defaultFlushDelay    = time.Millisecond * 1
 	defaultMaxFlushDelay = time.Millisecond * 10
 	sendChanSize         = 100
@@ -27,7 +27,6 @@ var (
 )
 
 type Config struct {
-	RecvChanSize  int           `json:"recv_chan_size"`
 	FlushDelay    time.Duration `json:"flush_delay"`
 	MaxFlushDelay time.Duration `json:"max_flush_delay"`
 	CrcChecksum   bool          `json:"crc_checksum"`
@@ -36,7 +35,6 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		RecvChanSize:  defaultRecvChanSize,
 		FlushDelay:    defaultFlushDelay,
 		MaxFlushDelay: defaultMaxFlushDelay,
 		CrcChecksum:   false,
@@ -98,10 +96,6 @@ func validateConfig(cfg *Config) {
 	if cfg.MaxFlushDelay < cfg.FlushDelay {
 		panic(fmt.Errorf("please set max_flush_delay > flush_delay"))
 	}
-
-	if cfg.RecvChanSize < 0 {
-		panic(fmt.Errorf("negative recv chan size"))
-	}
 }
 
 func (pc *PacketConn) flushRoutine() {
@@ -144,14 +138,26 @@ loop:
 	}
 }
 
-func (pc *PacketConn) Recv(recvChan chan *Packet) (err error) {
-	defer pc.Close()
+func (pc *PacketConn) Recv() <-chan *Packet {
+	return pc.RecvChanSize(DefaultRecvChanSize)
+}
 
-	var packet *Packet
+func (pc *PacketConn) RecvChanSize(chanSize uint) <-chan *Packet {
+	recvChan := make(chan *Packet, chanSize)
+
+	go func() {
+		defer close(recvChan)
+		_ = pc.RecvChan(recvChan)
+	}()
+
+	return recvChan
+}
+
+func (pc *PacketConn) RecvChan(recvChan chan *Packet) (err error) {
 	for {
-		packet, err = pc.recv()
+		packet, err := pc.recv()
 		if err != nil {
-			pc.closeWithError(err)
+			_ = pc.closeWithError(err)
 			break
 		}
 
