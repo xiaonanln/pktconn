@@ -23,6 +23,11 @@ func main() {
 
 	pc.Send(packet)
 	recvChan := make(chan *pktconn.Packet, 100)
-	recvPacket := <-pc.Recv(recvChan, true)
+	err = pc.Recv(recvChan)
+	if err != nil {
+		panic(err)
+	}
+
+	recvPacket := <-recvChan
 	fmt.Printf("recv packet: %d\n", recvPacket.GetPayloadLen())
 }
