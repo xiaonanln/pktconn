@@ -62,7 +62,6 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 			}
 		}
 
-		log.Printf("%s connected", conn.RemoteAddr())
 		go func() {
 			cfg := packetconn.DefaultConfig()
 			cfg.FlushDelay = time.Millisecond * 1
@@ -71,7 +70,6 @@ func (ts *testPacketServer) serve(listenAddr string) error {
 			conn = netconnutil.NewBufferedConn(conn, 8192*2, 8192*2)
 			pc := packetconn.NewPacketConnWithConfig(context.TODO(), conn, cfg)
 			for pkt := range pc.RecvChanSize(10000) {
-				pc.Send(pkt)
 				pc.Send(pkt)
 				pkt.Release()
 				atomic.AddUint64(&ts.handlePacketCount, 1)
