@@ -9,20 +9,23 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/xiaonanln/pktconn"
 )
 
 const (
-	port               = 14572
-	perfClientCount    = 1000
-	perfPayloadSizeMin = 0
-	perfPayloadSizeMax = 2048
+	port                     = 14572
+	perfClientCount          = 1000
+	perfPayloadSizeMin       = 0
+	perfPayloadSizeMax       = 2048
+	perfEchoCounterPerClient = 1000
 )
 
 var (
-	serverAddr = ""
+	serverAddr   = ""
+	totalCounter int32
 )
 
 func main() {
@@ -32,7 +35,7 @@ func main() {
 	done.Add(perfClientCount)
 	var allConnected sync.WaitGroup
 	allConnected.Add(perfClientCount)
-	startSendRecv := make(chan int, perfClientCount)
+	startSendRecv := make(chan int)
 
 	for i := 0; i < perfClientCount; i++ {
 		client := &testPacketClient{}
@@ -41,11 +44,19 @@ func main() {
 	log.Printf("wait for all clients to connected")
 	allConnected.Wait()
 	log.Printf("start %d send/recv ...", perfClientCount)
-	for i := 0; i < perfClientCount; i++ {
-		startSendRecv <- 1
-	}
+
+	close(startSendRecv)
+
+	t0 := time.Now()
 
 	done.Wait()
+
+	if totalCounter != perfClientCount*perfEchoCounterPerClient {
+		panic(fmt.Errorf("total counter should be %d, but is %d", perfClientCount*perfEchoCounterPerClient, totalCounter))
+	}
+
+	dt := time.Since(t0)
+	fmt.Printf("%d %v %d\n", totalCounter, dt, int(float64(totalCounter)/dt.Seconds()))
 }
 
 type testPacketClient struct {
@@ -77,17 +88,17 @@ restart:
 	packet := pktconn.NewPacket()
 	packet.WriteBytes(payload)
 
-	<-startSendRecv
-
 	recvCh := pc.Recv()
 
-	for {
+	<-startSendRecv
+
+	for i := 0; i < perfEchoCounterPerClient; i++ {
 		pc.Send(packet)
+
 		if _, ok := <-recvCh; !ok {
-			break
+			panic(pc.Err())
 		}
-		if _, ok := <-recvCh; !ok {
-			break
-		}
+
+		atomic.AddInt32(&totalCounter, 1)
 	}
 }

@@ -168,14 +168,13 @@ func (pc *PacketConn) RecvChan(recvChan chan *Packet) (err error) {
 }
 
 // Send send packets to remote
-func (pc *PacketConn) Send(packet *Packet) error {
+func (pc *PacketConn) Send(packet *Packet) {
 	if atomic.LoadInt64(&packet.refcount) <= 0 {
 		panic(fmt.Errorf("sending packet with refcount=%d", packet.refcount))
 	}
 
 	packet.addRefCount(1)
 	pc.sendChan <- packet
-	return nil
 }
 
 // Flush connection writes

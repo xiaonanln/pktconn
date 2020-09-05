@@ -1,0 +1,33 @@
+name: Benchmark
+
+on: [ pull_request ]
+
+jobs:
+  cancel-previous-runs:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: rokroskar/workflow-run-cleanup-action@master
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        if: "github.ref != 'refs/heads/master'"
+
+  bench:
+    name: Benchmark (Go ${{ matrix.go }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        go: [1.14]
+        os: [ "ubuntu-18.04"]
+    steps:
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: actions/checkout@v2
+      - name: Benchmark
+        run: |
+          (cd tests/echo_server && go build)
+          (cd tests/echo_client && go build)
+
+          ./tests/echo_server/echo_server &
+          sleep 3
+          ./tests/echo_client/echo_client localhost
