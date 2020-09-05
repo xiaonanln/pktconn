@@ -25,6 +25,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: Test
         run: |
-          go test -race -coverprofile=profile.out -covermode=atomic ./...
+          go test -coverprofile=profile.out -covermode=atomic ./...
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
