@@ -9,10 +9,9 @@
 1. 让接口尽可能简单！
 
 ## 性能测试
-[tests/echo_server](https://github.com/xiaonanln/pktconn/blob/master/examples/server/server.go)目前可以做到单核每秒接收并发回**3.5万**个0~2048字节的数据包
+[tests/echo_server](https://github.com/xiaonanln/pktconn/blob/master/examples/server/server.go)目前可以做到单核每秒接收并发回**5.4万**个0~2048字节的数据包
 * 测试环境
-    * 操作系统：Debian 8
-    * CPU：Intel(R) Xeon(R) CPU E5-2640 v2 @ 2.00GHz
+    * [Github Action Virtual Machine](https://docs.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners#supported-runners-and-hardware-resources)
 
 从[Profile结果](https://raw.githubusercontent.com/xiaonanln/pktconn/master/tests/profile.pdf)来看，**85%** 开销都在收发包的系统调用上，这部分是无法优化的。**几乎没有任何内存分配和垃圾回收的开销**，这也是实现高性能收发数据包的关键。
 
