@@ -3,12 +3,13 @@ package pktconn
 import (
 	"context"
 	"fmt"
-	"github.com/xiaonanln/tickchan"
 	"hash/crc32"
 	"io"
 	"net"
 	"sync/atomic"
 	"time"
+
+	"github.com/xiaonanln/tickchan"
 )
 
 const (
@@ -173,8 +174,14 @@ func (pc *PacketConn) Send(packet *Packet) {
 		panic(fmt.Errorf("sending packet with refcount=%d", packet.refcount))
 	}
 
-	packet.addRefCount(1)
-	pc.sendChan <- packet
+	// using select to avoid stucking when the channel is full
+	select {
+	case pc.sendChan <- packet:
+		packet.addRefCount(1)
+	default:
+		break
+	}
+
 }
 
 // Flush connection writes
